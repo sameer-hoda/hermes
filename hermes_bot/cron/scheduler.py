@@ -8,8 +8,6 @@ from hermes_bot.cron.searcher import run_cron_search
 from hermes_bot.cron.feedback import mark_awaiting_feedback
 from hermes_bot.sender import enqueue_to_mechat
 
-IST = config.IST
-
 
 class CronScheduler:
     def __init__(self):
