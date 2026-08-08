@@ -9,10 +9,11 @@ deep-dive search across all your chats. Deploy in one click — no terminal need
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new?template=https://github.com/sameer-hoda/hermes)
 
-1. Click the button above. Railway auto-detects the `Dockerfile` and `railway.json`.
-2. **Attach a volume** at mount path `/data` (required — stores your WhatsApp session so it survives redeploys)
-3. Open the deployed app URL
-4. Check deploy logs for the one-time console access code, then follow the setup wizard in your browser
+1. Click the button above — Railway auto-detects the `Dockerfile`.
+2. After deploy, go to the service **Settings → Networking** → enable **TCP Proxy** on port `8080` (this generates your public URL)
+3. Go to **Settings → Volumes** → attach a volume at mount path `/data`
+4. Check **Deploy Logs** for the one-time console access code (`>>> Setup console access code: xxxxxxxx <<<`)
+5. Open the public URL and follow the setup wizard
 
 ### Option 2: Hostinger VPS / Any Docker Host
 
