@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""
-Hermes — WhatsApp Personal Assistant
-Main entry point. Manages the Go bridge lifecycle and cron scheduler.
-"""
 import os
 import sys
 import signal
 import threading
 import time
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import json
+from pathlib import Path
 
 from hermes_bot import supervisor, config
 from hermes_bot.cron import scheduler
@@ -20,7 +16,6 @@ _running = True
 
 
 def _drain_bridge_output(proc):
-    """Keep reading bridge stdout so the pipe never fills up and blocks the bridge."""
     def _run():
         try:
             for line in iter(proc.stdout.readline, ""):
@@ -44,50 +39,72 @@ def _shutdown(signum, frame):
     sys.exit(0)
 
 
+def _read_setup_state() -> str:
+    path = Path(config.SETUP_FILE)
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            return data.get("state", "")
+        except Exception:
+            pass
+    return ""
+
+
 def main():
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    if not config.GEMINI_API_KEY:
-        print("[hermes] GEMINI_API_KEY not set in .env")
-        sys.exit(1)
-
     print("[hermes] Starting Hermes...")
-    print(f"[hermes] Bridge: {config.BRIDGE_URL}")
+    print(f"[hermes] Bridge URL: {config.BRIDGE_URL}")
     print(f"[hermes] Messages DB: {config.MESSAGES_DB}")
+    print(f"[hermes] Store Dir: {config.STORE_DIR}")
 
     proc = supervisor.start_bridge()
-
-    if not supervisor.launch(proc):
-        proc.terminate()
-        print("[hermes] Failed to pair bridge. Exiting.")
-        sys.exit(1)
-
     _drain_bridge_output(proc)
 
-    try:
-        mechat = get_mechat_chat_jid()
-        phone = get_own_phone()
-        enqueue_to_mechat(f"🤖 *Hermes* · Ready\nID: `{phone}`\n/help for commands")
-    except Exception as e:
-        print(f"[hermes] Welcome message failed: {e}")
+    if not supervisor.wait_for_readiness(timeout=180):
+        proc.terminate()
+        print("[hermes] Bridge failed to start. Exiting.")
+        sys.exit(1)
 
-    scheduler.start()
+    print("[hermes] Bridge ready. Starting services...")
     start_flush_thread()
+    scheduler.start()
 
-    print("[hermes] All systems go. Waiting for messages...\n")
+    was_ready = False
+    print("[hermes] All systems go. Waiting for setup to complete...\n")
 
     while _running:
         if proc.poll() is not None:
-            print("[hermes] Bridge exited unexpectedly. Restarting...")
-            enqueue_to_mechat("⚠️ *Bridge restarted* · Brief interruption")
+            print("[hermes] Bridge exited. Restarting...")
+            time.sleep(2)
             proc = supervisor.start_bridge()
-            supervisor.launch(proc)
             _drain_bridge_output(proc)
+            supervisor.wait_for_readiness(timeout=60)
+            continue
+
+        state = _read_setup_state()
+        
+        if state == "READY" and not was_ready:
+            was_ready = True
+            print("[hermes] Setup complete! Hermes is READY.")
+            try:
+                mechat = get_mechat_chat_jid()
+                phone = get_own_phone()
+                enqueue_to_mechat(f"🤖 *Hermes* · Ready\nID: `{phone}`\n/help for commands")
+            except Exception as e:
+                print(f"[hermes] Welcome message failed: {e}")
+        
+        elif state == "RESETTING":
+            print("[hermes] Reset in progress, waiting for restart...")
+        
         time.sleep(2)
 
     proc.terminate()
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

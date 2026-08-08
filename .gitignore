@@ -2,6 +2,7 @@
 .env
 *.db
 store/
+data/
 
 # Python
 __pycache__/
@@ -11,6 +12,7 @@ venv/
 
 # Go binary
 wa-bridge
+whatsapp-client
 
 # OS
 .DS_Store

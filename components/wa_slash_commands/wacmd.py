@@ -33,9 +33,22 @@ from engine import (
 )
 from formatter import fmt_sotu, fmt_pending, fmt_stats, fmt_recap
 
-_base_url = os.getenv("WA_API_URL", "http://localhost:8080").rstrip("/")
+_base_url = os.getenv("WA_API_URL", "http://127.0.0.1:8081").rstrip("/")
 API_URL = _base_url if _base_url.endswith("/api/send") else f"{_base_url}/api/send"
-OWNER_PHONE = os.getenv("OWNER_PHONE_NUMBER", "").strip().replace("+", "")
+
+import json
+from pathlib import Path
+
+_setup_file = Path(os.getenv("STORE_DIR", os.path.join(os.path.dirname(__file__), "..", "..", "hermes_bot", "store"))) / "setup.json"
+_owner_from_setup = ""
+if _setup_file.exists():
+    try:
+        _setup = json.loads(_setup_file.read_text())
+        _owner_from_setup = _setup.get("own_phone", "")
+    except:
+        pass
+
+OWNER_PHONE = os.getenv("OWNER_PHONE_NUMBER", "").strip().replace("+", "") or _owner_from_setup
 OWNER_JID = f"{OWNER_PHONE}@s.whatsapp.net" if OWNER_PHONE else None
 
 log_path = os.path.join(_dir, "slash_cmd.log")
@@ -387,25 +400,24 @@ HELP_TEXT = """\
 """
 
 
+# ── Security ──────────────────────────────────────────────────────────────────
+def _is_owner(chat_jid: str, sender_jid: str) -> bool:
+    if not OWNER_JID:
+        return False
+    base_sender = sender_jid.split(":")[0].split("@")[0]
+    base_owner = OWNER_JID.split(":")[0].split("@")[0]
+    return base_sender == base_owner
+
+
 # ── Main dispatch ─────────────────────────────────────────────────────────────
 def handle_command(chat_jid: str, sender_jid: str, command_text: str) -> None:
     # ── SECURITY CHECK: Only allow the owner's WhatsApp number to use commands ──
     if OWNER_JID:
-        actual_sender = resolve_send_jid(sender_jid)
-        
-        # Strip device IDs (the :86 part) to compare the base phone number
-        def base_jid(j: str) -> str:
-            if not j: return j
-            parts = j.split("@")
-            if len(parts) == 2:
-                return f"{parts[0].split(':')[0]}@{parts[1]}"
-            return j
-
-        if base_jid(actual_sender) != base_jid(OWNER_JID):
-            print(f"[🛡️ Security] Ignoring command from non-owner: {actual_sender}")
+        if not _is_owner(chat_jid, sender_jid):
+            print(f"[🛡️ Security] Ignoring command from non-owner: {sender_jid}")
             return
     else:
-        print("[⚠️ Warning] OWNER_PHONE_NUMBER not set in .env. Responding to everyone!")
+        print("[⚠️ Warning] OWNER_PHONE_NUMBER not set. Responding to everyone!")
 
     parts = command_text.strip().split(" ", 1)
     command = parts[0].lower()

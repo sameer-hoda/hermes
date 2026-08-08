@@ -1,14 +1,26 @@
+import json
 import sqlite3
 import datetime
+from pathlib import Path
 from typing import Optional
 
 from hermes_bot import config
 
 
+def _read_setup_json():
+    path = Path(config.SETUP_FILE)
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except:
+            pass
+    return {}
+
+
 def _connect():
     conn = sqlite3.connect(config.MESSAGES_DB)
     conn.row_factory = sqlite3.Row
-    conn.execute(f"ATTACH DATABASE '{config.WHATSAPP_DB}' AS wa")
+    conn.execute("ATTACH DATABASE ? AS wa", (config.WHATSAPP_DB,))
     return conn
 
 
@@ -26,6 +38,9 @@ def get_own_jid() -> str:
 
 
 def get_own_phone() -> str:
+    setup = _read_setup_json()
+    if setup.get("own_phone"):
+        return setup["own_phone"]
     conn = _connect()
     row = conn.execute("SELECT jid FROM wa.whatsmeow_device LIMIT 1").fetchone()
     conn.close()
@@ -38,6 +53,9 @@ def get_own_phone() -> str:
 
 
 def get_mechat_chat_jid() -> str:
+    setup = _read_setup_json()
+    if setup.get("mechat_jid"):
+        return setup["mechat_jid"]
     if config.MECHAT_JID:
         return config.MECHAT_JID
     own_phone = get_own_phone()
@@ -135,7 +153,7 @@ def get_chat_messages(chat_jid: str, days: int = 14, limit: int = 200) -> list[d
         """
         SELECT m.content, m.timestamp, m.is_from_me,
                COALESCE(c.full_name, c.push_name, c.first_name,
-                        c.business_name) AS contact_name,
+                         c.business_name) AS contact_name,
                ms.sender_jid,
                ch.name AS chat_name
         FROM messages m
@@ -188,7 +206,7 @@ def get_recent_all_messages(hours: int = 24, limit: int = 1000) -> list[dict]:
         """
         SELECT m.content, m.timestamp, m.is_from_me, m.chat_jid,
                COALESCE(c.full_name, c.push_name, c.first_name,
-                        c.business_name) AS contact_name,
+                         c.business_name) AS contact_name,
                ms.sender_jid,
                ch.name AS chat_name
         FROM messages m
@@ -250,9 +268,9 @@ def resolve_contact_name(jid: str) -> str:
 
 def is_message_from_owner(chat_jid: str, sender_jid: str) -> bool:
     own_phone = get_own_phone()
-    if sender_jid.startswith(own_phone):
-        return True
     sender_user = sender_jid.split("@")[0].split(":")[0]
+    if sender_user == own_phone:
+        return True
     conn = _connect()
     row = conn.execute(
         "SELECT pn FROM wa.whatsmeow_lid_map WHERE lid LIKE ?",

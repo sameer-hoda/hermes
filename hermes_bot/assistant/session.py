@@ -6,11 +6,13 @@ from typing import Optional
 
 from hermes_bot import config
 
-IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
+def _tz():
+    return config.TIMEZONE
 
 
 def _now() -> str:
-    return datetime.datetime.now(IST).isoformat()
+    return datetime.datetime.now(_tz()).isoformat()
 
 
 def _parse_ts(ts: str) -> datetime.datetime:
@@ -41,13 +43,13 @@ class Session:
     def is_timed_out(self) -> bool:
         if not self.timeout_at:
             return False
-        return _parse_ts(self.timeout_at) < datetime.datetime.now(IST)
+        return _parse_ts(self.timeout_at) < datetime.datetime.now(_tz())
 
     def touch(self):
         self.last_message_at = _now()
         self.message_count += 1
         self.timeout_at = (
-            datetime.datetime.now(IST) + datetime.timedelta(minutes=config.SESSION_TIMEOUT_MINUTES)
+            datetime.datetime.now(_tz()) + datetime.timedelta(minutes=config.SESSION_TIMEOUT_MINUTES)
         ).isoformat()
 
     def add_message(self, text: str):

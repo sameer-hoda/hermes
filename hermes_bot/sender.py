@@ -1,31 +1,39 @@
 import time
 import json
+import sqlite3
 import threading
 from pathlib import Path
 
 from hermes_bot import config
 
-_pending_file = Path(config.STORE_DIR) / "pending_messages.json"
 
-
-def _read_pending() -> list[dict]:
-    if not _pending_file.exists():
-        return []
-    try:
-        return json.loads(_pending_file.read_text())
-    except (json.JSONDecodeError, Exception):
-        return []
-
-
-def _write_pending(messages: list[dict]):
-    _pending_file.parent.mkdir(parents=True, exist_ok=True)
-    _pending_file.write_text(json.dumps(messages))
+def _get_outbox_db():
+    db_path = str(config.HERMES_DB_PATH)
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS outbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            jid TEXT NOT NULL,
+            text TEXT NOT NULL,
+            queued_at REAL NOT NULL,
+            sent_at REAL,
+            attempts INTEGER DEFAULT 0
+        )
+    """)
+    conn.commit()
+    return conn
 
 
 def enqueue_message(jid: str, text: str):
-    messages = _read_pending()
-    messages.append({"jid": jid, "text": text, "queued_at": time.time()})
-    _write_pending(messages)
+    conn = _get_outbox_db()
+    conn.execute(
+        "INSERT INTO outbox (jid, text, queued_at) VALUES (?, ?, ?)",
+        (jid, text, time.time()),
+    )
+    conn.commit()
+    conn.close()
 
 
 def enqueue_to_mechat(text: str):
@@ -35,30 +43,53 @@ def enqueue_to_mechat(text: str):
 
 def flush_pending():
     import requests
-    messages = _read_pending()
-    if not messages:
+    conn = _get_outbox_db()
+    rows = conn.execute(
+        "SELECT id, jid, text, attempts FROM outbox WHERE sent_at IS NULL ORDER BY id"
+    ).fetchall()
+
+    if not rows:
+        conn.close()
         return
 
     url = f"{config.BRIDGE_URL}/api/send"
-    sent = []
+    sent_count = 0
 
-    for msg in messages:
+    for row in rows:
+        msg_id, jid, text, attempts = row
         try:
             resp = requests.post(
                 url,
-                json={"recipient": msg["jid"], "message": msg["text"]},
+                json={"recipient": jid, "message": text},
                 timeout=15,
             )
             if resp.status_code == 200 and resp.json().get("success"):
-                sent.append(msg)
+                conn.execute(
+                    "UPDATE outbox SET sent_at = ? WHERE id = ?",
+                    (time.time(), msg_id),
+                )
+                sent_count += 1
+            else:
+                _handle_failure(conn, msg_id, attempts)
         except Exception:
-            pass
+            _handle_failure(conn, msg_id, attempts)
 
-    remaining = [m for m in messages if m not in sent]
-    _write_pending(remaining)
+    conn.commit()
+    conn.close()
 
-    if sent:
-        print(f"[sender] Flushed {len(sent)} pending message(s)")
+    if sent_count:
+        print(f"[sender] Flushed {sent_count} pending message(s)")
+
+
+def _handle_failure(conn, msg_id, attempts):
+    new_attempts = attempts + 1
+    if new_attempts >= 3:
+        conn.execute("DELETE FROM outbox WHERE id = ?", (msg_id,))
+    else:
+        conn.execute(
+            "UPDATE outbox SET attempts = ? WHERE id = ?",
+            (new_attempts, msg_id),
+        )
 
 
 def _flush_loop():

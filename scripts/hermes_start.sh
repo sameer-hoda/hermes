@@ -18,19 +18,9 @@ if [ ! -f "$BRIDGE_DIR/wa-bridge" ]; then
     echo "[setup] Bridge built."
 fi
 
-# Check for .env
-if [ ! -f "$HERMES_DIR/.env" ]; then
-    if [ -f "$HERMES_DIR/.env.example" ]; then
-        echo "[setup] No .env found. Copying from .env.example..."
-        cp "$HERMES_DIR/.env.example" "$HERMES_DIR/.env"
-        echo "[setup] Edit hermes_bot/.env and add your GEMINI_API_KEY"
-        echo "[setup] Then run this script again."
-        exit 1
-    fi
-fi
-
-# Ensure store directory exists
+# Ensure store directory exists (local dev uses hermes_bot/store)
 mkdir -p "$HERMES_DIR/store"
+export STORE_DIR="${STORE_DIR:-$HERMES_DIR/store}"
 
 # Launch Hermes
 cd "$PROJECT_DIR"
