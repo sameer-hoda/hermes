@@ -17,7 +17,6 @@ COPY . .
 COPY --from=gobuild /out/wa-bridge components/wa_bridge/wa-bridge
 ENV STORE_DIR=/data BRIDGE_INTERNAL_PORT=8081 PYTHONUNBUFFERED=1
 RUN mkdir -p /data
-VOLUME /data
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD python3 -c "import urllib.request,os,sys; port=os.getenv('PORT','8080'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health',timeout=3); print('OK')"
 CMD ["python3", "-m", "hermes_bot.main"]
