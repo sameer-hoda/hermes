@@ -21,6 +21,9 @@ BRIDGE_URL = os.getenv("WA_API_URL", "http://localhost:8080")
 # ── Owner ────────────────────────────────────────────────────────────────────
 OWNER_PHONE = os.getenv("OWNER_PHONE_NUMBER", "").strip().replace("+", "")
 
+# ── MeChat (owner's self-chat / personal notes group) ───────────────────────
+MECHAT_JID = os.getenv("MECHAT_JID", "").strip()
+
 # ── LLM ──────────────────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-3.1-flash-lite-preview")

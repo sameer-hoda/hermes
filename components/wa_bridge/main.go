@@ -15,7 +15,9 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,7 +33,26 @@ import (
 )
 
 var ownerPhone string
+var mechatJID string
+var recentlySentMu sync.Mutex
+var recentlySent = make(map[string]time.Time)
 
+// isRecentlySent returns true if the bridge recently sent this text via /api/send,
+// preventing the bot from re-ingesting its own output on linked devices.
+func isRecentlySent(text string) bool {
+	recentlySentMu.Lock()
+	defer recentlySentMu.Unlock()
+	if _, ok := recentlySent[text]; ok {
+		return true
+	}
+	// Also check prefix (first 80 chars) — WhatsApp linked-device truncation
+	for k := range recentlySent {
+		if len(k) > 80 && len(text) > 80 && k[:80] == text[:80] {
+			return true
+		}
+	}
+	return false
+}
 
 
 // Message represents a chat message for our client
@@ -479,7 +500,7 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 			go func() {
 				scriptPath := "wacmd.py"
 				if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-					scriptPath = "../wacmd.py"
+					scriptPath = "../wa_slash_commands/wacmd.py"
 				}
 
 				absPath, err := filepath.Abs(scriptPath)
@@ -503,18 +524,19 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 			}()
 		}
 
-		// MeChat Handler — spawn hermes_handler.py for messages in self-chat (MeChat)
-		if ownerPhone != "" && !strings.HasPrefix(content, "/") {
+		// MeChat Handler — spawn mechat_handler.py for messages in self-chat (MeChat)
+		if mechatJID != "" && !strings.HasPrefix(content, "/") && !isRecentlySent(content) {
 			chatUser := msg.Info.Chat.User
 			senderUser := msg.Info.Sender.User
 
 			// MeChat is the chat with yourself: chatUser == senderUser
 			isMeChat := chatUser == senderUser
 			// Also match legacy format: chat JID directly uses owner phone
-			if !isMeChat && chatUser == ownerPhone {
+			if !isMeChat && ownerPhone != "" && chatUser == ownerPhone {
 				isMeChat = true
 			}
-			if !isMeChat && chatJID == "91XXXXXXXXXX-1633800754@g.us" {
+			// Owner's personal notes group doubles as MeChat
+			if !isMeChat && chatJID == mechatJID {
 				isMeChat = true
 			}
 
@@ -810,6 +832,19 @@ func startRESTServer(client *whatsmeow.Client, messageStore *MessageStore, port 
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 
+		// Record sent text to prevent the bridge from re-ingesting its own
+		// output as an incoming message (linked-device self-send echo).
+		if req.Message != "" {
+			recentlySentMu.Lock()
+			recentlySent[req.Message] = time.Now()
+			for k, v := range recentlySent {
+				if time.Since(v) > 10*time.Minute {
+					delete(recentlySent, k)
+				}
+			}
+			recentlySentMu.Unlock()
+		}
+
 		// Send response
 		json.NewEncoder(w).Encode(SendMessageResponse{
 			Success: success,
@@ -889,6 +924,15 @@ func main() {
 	ownerPhone = os.Getenv("OWNER_PHONE_NUMBER")
 	if ownerPhone != "" {
 		logger.Infof("Owner phone set: %s", ownerPhone)
+	}
+
+	// MeChat JID: explicit override, else owner's personal notes group
+	mechatJID = os.Getenv("MECHAT_JID")
+	if mechatJID == "" && ownerPhone != "" {
+		mechatJID = ownerPhone + "-1633800754@g.us"
+	}
+	if mechatJID != "" {
+		logger.Infof("MeChat JID: %s", mechatJID)
 	}
 
 	// Create database connection for storing session data
@@ -1010,8 +1054,17 @@ func main() {
 
 	fmt.Println("\n✓ Connected to WhatsApp! Type 'help' for commands.")
 
-	// Start REST API server
-	startRESTServer(client, messageStore, 8080)
+	// Start REST API server (port configurable via BRIDGE_PORT/PORT env)
+	port := 8080
+	for _, envKey := range []string{"BRIDGE_PORT", "PORT"} {
+		if p := os.Getenv(envKey); p != "" {
+			if n, err := strconv.Atoi(p); err == nil && n > 0 {
+				port = n
+				break
+			}
+		}
+	}
+	startRESTServer(client, messageStore, port)
 
 	// Create a channel to keep the main goroutine alive
 	exitChan := make(chan os.Signal, 1)

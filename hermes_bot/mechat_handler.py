@@ -37,11 +37,19 @@ def main():
         _log("SKIP: empty message")
         return
 
+    if message_text.strip().startswith("/"):
+        _log("SKIP: slash command (bridge handles these)")
+        return
+
     _log("Checking owner...")
     if not is_message_from_owner(chat_jid, sender_jid):
         _log("SKIP: not owner")
         return
     _log("Owner check passed")
+
+    # Immediate ack so the user is never left wondering — deep-dive replies
+    # can take minutes; progress updates follow as the pipeline advances.
+    enqueue_to_mechat("⚡ *On it* — figuring out what you need…")
 
     _log("Loading session...")
     session_mgr = SessionManager()
@@ -60,7 +68,7 @@ def main():
             session.touch()
             session.add_message(message_text)
             session_mgr.update_session(session)
-            reply = route_intent(session, message_text)
+            reply = route_intent(session, message_text, progress=_progress)
             _log(f"Reply generated: \"{reply[:80]}...\"")
             _send_reply(reply)
             return
@@ -68,7 +76,7 @@ def main():
             _log("User wants new session")
             session_mgr.close_session(session)
             session = session_mgr.create_session(message_text)
-            reply = route_intent(session, message_text)
+            reply = route_intent(session, message_text, progress=_progress)
             _log(f"Reply generated: \"{reply[:80]}...\"")
             _send_reply(reply)
             return
@@ -88,7 +96,7 @@ def main():
             _log(f"New topic: \"{result.new_topic}\"")
             session_mgr.close_session(session)
             session = session_mgr.create_session(message_text)
-            reply = route_intent(session, message_text)
+            reply = route_intent(session, message_text, progress=_progress)
             _log(f"Reply generated: \"{reply[:80]}...\"")
             _send_reply(reply)
             return
@@ -113,7 +121,7 @@ def main():
         session = session_mgr.create_session(message_text)
 
     _log("Routing intent...")
-    reply = route_intent(session, message_text)
+    reply = route_intent(session, message_text, progress=_progress)
     _log(f"Reply generated: \"{reply[:100]}...\"")
 
     _log("Sending reply via bridge API...")
@@ -125,6 +133,11 @@ def _send_reply(text: str):
     _log(f"Enqueueing {len(text)} chars to pending_messages.json")
     enqueue_to_mechat(text)
     _log("Enqueued")
+
+
+def _progress(msg: str):
+    _log(f"Progress: {msg}")
+    enqueue_to_mechat(msg)
 
 
 if __name__ == "__main__":

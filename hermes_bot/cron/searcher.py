@@ -157,20 +157,91 @@ def _methodology_footer(
     )
 
 
-def run_one_shot_search(query: str) -> str:
+STATUS_CHECK_PROMPT = """You are Hermes — a personal assistant generating a situation report for the user.
+Scan these messages from the last {hours} hours across all WhatsApp groups.
+
+Extract ONLY items that need the user's attention. The sender "You" = the user themselves.
+
+Look for:
+1. 🔴 *Needs action* — action items, tasks, requests directed at the user
+2. 🟡 *Waiting on response* — open questions threads where the user was asked something
+3. 📋 *Open decisions* — decisions pending where the user needs to weigh in
+4. ⚠️ *Blockers / risks* — anything flagged as blocked, at risk, or escalating
+
+One line per item. Group by chat. Skip resolved/concluded items and pure chatter.
+If nothing needs attention, say so honestly.
+
+Messages (newest first):
+{messages}
+
+Your response (speak directly to the user, WhatsApp markdown):"""
+
+
+def run_status_check(progress=None) -> str:
+    def _say(msg: str):
+        if progress:
+            try:
+                progress(msg)
+            except Exception:
+                pass
+
+    _say("🔍 Scanning your last 24h across all chats …")
+
+    messages = db.get_recent_all_messages(hours=24, limit=1000)
+
+    if not messages:
+        return "No recent messages across your groups in the last 24 hours."
+
+    _say(f"📋 Found *{len(messages)}* messages — extracting what needs your attention …")
+
+    formatted = "\n".join(
+        f"[{m['chat_name']}] [{m['time'].strftime('%H:%M')}] {m['sender']}: {m['content']}"
+        for m in messages
+    )
+
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    prompt = STATUS_CHECK_PROMPT.format(hours=24, messages=formatted[:30000])
+
+    try:
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_FAST,
+            contents=prompt,
+        )
+        text = response.text.strip()
+    except Exception as e:
+        print(f"[searcher] Status check error: {e}")
+        return "Couldn't generate the status report. Try again in a moment."
+
+    return f"📊 *Your 24-hr Sitrep*\n\n{text}"
+
+
+def run_one_shot_search(query: str, progress=None) -> str:
+    def _say(msg: str):
+        if progress:
+            try:
+                progress(msg)
+            except Exception:
+                pass
+
     groups = db.get_active_groups(days=30)
     if not groups:
         return "No active groups found in the last 30 days."
+
+    _say(f"🔍 Scanning *{len(groups)}* active groups for _{query[:60]}_ …")
 
     relevant = _score_relevance(query, groups)
     if not relevant:
         return f"No groups found relevant to *{query}*.\nTry a different query or broader terms."
 
+    _say(f"🎯 *{len(relevant)}* relevant groups found — reading messages…")
+
     summaries = []
-    for group in relevant:
+    for i, group in enumerate(relevant, 1):
+        _say(f"📝 Reading {i}/{len(relevant)}: _{group.get('name', 'Group')}_")
         summary = _summarize_group(query, group)
         summaries.append(summary)
 
+    _say("🧠 Stitching it all together…")
     synthesis = _synthesize(query, summaries)
 
     footer = _methodology_footer(len(groups), len(relevant), query)

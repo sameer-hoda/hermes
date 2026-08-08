@@ -33,7 +33,8 @@ from engine import (
 )
 from formatter import fmt_sotu, fmt_pending, fmt_stats, fmt_recap
 
-API_URL = os.getenv("WA_API_URL", "http://localhost:8080/api/send")
+_base_url = os.getenv("WA_API_URL", "http://localhost:8080").rstrip("/")
+API_URL = _base_url if _base_url.endswith("/api/send") else f"{_base_url}/api/send"
 OWNER_PHONE = os.getenv("OWNER_PHONE_NUMBER", "").strip().replace("+", "")
 OWNER_JID = f"{OWNER_PHONE}@s.whatsapp.net" if OWNER_PHONE else None
 

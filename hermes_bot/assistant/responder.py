@@ -41,7 +41,8 @@ HELP_TEXT = """🤖 *Hermes* · Your WhatsApp Assistant
 
 *What I can do:*
 • Chat with you naturally in this chat
-• /ask <topic> — search all groups for updates
+• Ask me "what's open" or "catch me up" — scans all groups for what needs your attention
+• /ask <topic> — deep-dive search across all groups
 • /cron add "<query>" daily 09:00 — schedule summaries
 • /cron list — see your scheduled summaries
 • /sotu — State of the Union (in any group)
@@ -59,7 +60,7 @@ GREETINGS = [
 ]
 
 
-def route_intent(session: Session, message: str) -> str:
+def route_intent(session: Session, message: str, progress=None) -> str:
     msg_lower = message.strip().lower()
 
     if msg_lower in ("/help", "help", "what can you do"):
@@ -75,7 +76,7 @@ def route_intent(session: Session, message: str) -> str:
 
     if intent.intent == "ask":
         from hermes_bot.cron.searcher import run_one_shot_search
-        return run_one_shot_search(intent.query or message)
+        return run_one_shot_search(intent.query or message, progress=progress)
 
     if intent.intent == "cron_setup":
         from hermes_bot.cron.feedback import handle_cron_setup
@@ -97,10 +98,14 @@ def route_intent(session: Session, message: str) -> str:
         from hermes_bot.cron.feedback import handle_keep
         return handle_keep()
 
+    if intent.intent == "status_check":
+        from hermes_bot.cron.searcher import run_status_check
+        return run_status_check(progress=progress)
+
     if intent.intent in ("question", "unknown"):
         if intent.needs_context and intent.context_scope == "all_groups":
             from hermes_bot.cron.searcher import run_one_shot_search
-            return run_one_shot_search(intent.query or message)
+            return run_one_shot_search(intent.query or message, progress=progress)
         return respond_freeform(session, message)
 
     if intent.intent == "statement":

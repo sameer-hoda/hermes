@@ -13,7 +13,7 @@ echo ""
 if [ ! -f "$BRIDGE_DIR/wa-bridge" ]; then
     echo "[setup] Building Go bridge..."
     cd "$BRIDGE_DIR"
-    go build -o wa-bridge .
+    GOTOOLCHAIN=go1.25.0 go build -o wa-bridge .
     cd "$PROJECT_DIR"
     echo "[setup] Bridge built."
 fi

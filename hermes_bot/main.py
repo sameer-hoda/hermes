@@ -6,6 +6,7 @@ Main entry point. Manages the Go bridge lifecycle and cron scheduler.
 import os
 import sys
 import signal
+import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +17,19 @@ from hermes_bot.sender import enqueue_to_mechat, start_flush_thread
 from hermes_bot.db import get_mechat_chat_jid, get_own_phone
 
 _running = True
+
+
+def _drain_bridge_output(proc):
+    """Keep reading bridge stdout so the pipe never fills up and blocks the bridge."""
+    def _run():
+        try:
+            for line in iter(proc.stdout.readline, ""):
+                stripped = line.rstrip()
+                if stripped:
+                    print(f"[bridge] {stripped}", flush=True)
+        except Exception:
+            pass
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def _shutdown(signum, frame):
@@ -49,6 +63,8 @@ def main():
         print("[hermes] Failed to pair bridge. Exiting.")
         sys.exit(1)
 
+    _drain_bridge_output(proc)
+
     try:
         mechat = get_mechat_chat_jid()
         phone = get_own_phone()
@@ -67,6 +83,7 @@ def main():
             enqueue_to_mechat("⚠️ *Bridge restarted* · Brief interruption")
             proc = supervisor.start_bridge()
             supervisor.launch(proc)
+            _drain_bridge_output(proc)
         time.sleep(2)
 
     proc.terminate()

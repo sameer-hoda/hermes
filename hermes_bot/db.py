@@ -38,6 +38,8 @@ def get_own_phone() -> str:
 
 
 def get_mechat_chat_jid() -> str:
+    if config.MECHAT_JID:
+        return config.MECHAT_JID
     own_phone = get_own_phone()
     conn = _connect()
 
@@ -171,6 +173,61 @@ def get_chat_messages(chat_jid: str, days: int = 14, limit: int = 200) -> list[d
             "content": r["content"].strip(),
             "is_from_me": bool(r["is_from_me"]),
             "chat_name": r["chat_name"] or chat_jid.split("@")[0],
+        })
+    return results
+
+
+def get_recent_all_messages(hours: int = 24, limit: int = 1000) -> list[dict]:
+    threshold = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(hours=hours)
+    ).isoformat()
+
+    conn = _connect()
+    rows = conn.execute(
+        """
+        SELECT m.content, m.timestamp, m.is_from_me, m.chat_jid,
+               COALESCE(c.full_name, c.push_name, c.first_name,
+                        c.business_name) AS contact_name,
+               ms.sender_jid,
+               ch.name AS chat_name
+        FROM messages m
+        LEFT JOIN chats ch ON m.chat_jid = ch.jid
+        LEFT JOIN wa.whatsmeow_message_secrets ms
+            ON m.id = ms.message_id AND m.chat_jid = ms.chat_jid
+        LEFT JOIN wa.whatsmeow_contacts c
+            ON ms.sender_jid = c.their_jid
+        LEFT JOIN wa.whatsmeow_chat_settings cs ON m.chat_jid = cs.chat_jid
+        WHERE m.chat_jid LIKE '%@g.us'
+          AND (cs.archived IS NULL OR cs.archived = 0)
+          AND m.timestamp >= ?
+          AND m.content IS NOT NULL
+          AND m.content != ''
+        ORDER BY m.timestamp DESC
+        LIMIT ?
+        """,
+        (threshold, limit),
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for r in reversed(rows):
+        try:
+            dt = datetime.datetime.fromisoformat(r["timestamp"].replace(" ", "T"))
+        except (ValueError, AttributeError):
+            dt = datetime.datetime.now(datetime.timezone.utc)
+
+        sender = "You" if r["is_from_me"] else (
+            r["contact_name"]
+            or (r["sender_jid"].split("@")[0] if r["sender_jid"] else "Unknown")
+        )
+
+        results.append({
+            "time": dt,
+            "sender": sender,
+            "content": r["content"].strip(),
+            "is_from_me": bool(r["is_from_me"]),
+            "chat_name": r["chat_name"] or r["chat_jid"].split("@")[0],
         })
     return results
 

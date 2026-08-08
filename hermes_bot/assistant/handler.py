@@ -12,8 +12,8 @@ Message: "{message}"
 Respond with JSON only:
 {{
   "intent": "ask" | "cron_setup" | "cron_list" | "cron_pause" | "cron_resume" |
-            "cron_delete" | "cron_feedback" | "cron_keep" | "question" |
-            "statement" | "help" | "greeting" | "unknown",
+            "cron_delete" | "cron_feedback" | "cron_keep" | "status_check" |
+            "question" | "statement" | "help" | "greeting" | "unknown",
   "query": "the extracted query or topic if applicable",
   "needs_context": true/false,
   "context_scope": "mechat_only" | "all_groups" | "specific_group",
@@ -31,6 +31,7 @@ Intent guide:
 - "cron_list"/"cron_pause"/"cron_resume"/"cron_delete": explicit cron management
 - "cron_feedback": user giving feedback on a summary. Messages like "this was too broad", "focus on decisions only"
 - "cron_keep": user wants to keep a cron job. Messages like "keep this", "like it", "save this"
+- "status_check": user wants a personal status report — what's open across all groups that needs their attention. Messages like "what's open", "what's pending on me", "catch me up", "any blockers", "what did I miss", "sitrep", "what needs my attention". NOT for topic-specific queries with a named subject like "what's happening with X".
 - "question": user asking something that might need context
 - "statement": user making a statement or sharing info
 - "help": user asking for help

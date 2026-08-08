@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import signal
 import subprocess
 import sqlite3
 from pathlib import Path
@@ -8,6 +9,70 @@ from pathlib import Path
 from hermes_bot import config
 
 BRIDGE_DIR = config.PROJECT_ROOT / "components" / "wa_bridge"
+
+
+def _bridge_port() -> int:
+    port = os.getenv("BRIDGE_PORT", "").strip()
+    if port:
+        return int(port)
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(config.BRIDGE_URL)
+        if parsed.port:
+            return parsed.port
+    except Exception:
+        pass
+    return 8080
+
+
+def _pids_listening_on_port(port: int) -> list[int]:
+    try:
+        result = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return [int(x) for x in result.stdout.split()]
+    except Exception:
+        return []
+
+
+def _is_bridge_process(pid: int) -> bool:
+    try:
+        result = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "args="],
+            capture_output=True, text=True, timeout=5,
+        )
+        return "wa-bridge" in result.stdout
+    except Exception:
+        return False
+
+
+def _free_bridge_port(port: int):
+    """Kill stale wa-bridge processes holding the port; abort if a foreign process owns it.
+
+    A stale bridge from a previous run silently cripples the whole system: the new
+    bridge can't bind the REST port, so sends fail while receives keep working.
+    """
+    pids = _pids_listening_on_port(port)
+    if not pids:
+        return
+    for pid in pids:
+        if _is_bridge_process(pid):
+            print(f"[supervisor] Killing stale wa-bridge (PID {pid}) holding port {port}...")
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        else:
+            print(f"[supervisor] ERROR: port {port} is in use by PID {pid} (not wa-bridge).")
+            print("[supervisor] Free the port, or change BRIDGE_PORT + WA_API_URL in hermes_bot/.env.")
+            sys.exit(1)
+    for _ in range(20):
+        if not _pids_listening_on_port(port):
+            return
+        time.sleep(0.5)
+    print(f"[supervisor] ERROR: port {port} still in use after killing stale bridge. Exiting.")
+    sys.exit(1)
 
 
 def _bridge_binary() -> Path:
@@ -44,12 +109,13 @@ def _bridge_send_works() -> bool:
 def _bridge_api_up() -> bool:
     import requests
     try:
-        requests.post(
+        resp = requests.post(
             f"{config.BRIDGE_URL}/api/send",
             json={"recipient": "test@s.whatsapp.net", "message": ""},
             timeout=3,
         )
-        return True
+        # 404 means something else is listening on the port (not our bridge)
+        return resp.status_code != 404
     except Exception:
         return False
 
@@ -80,6 +146,13 @@ def start_bridge() -> subprocess.Popen:
     env = os.environ.copy()
     if config.OWNER_PHONE:
         env["OWNER_PHONE_NUMBER"] = config.OWNER_PHONE
+    if config.MECHAT_JID:
+        env["MECHAT_JID"] = config.MECHAT_JID
+    bridge_port = os.getenv("BRIDGE_PORT", "").strip()
+    if bridge_port:
+        env["BRIDGE_PORT"] = bridge_port
+
+    _free_bridge_port(_bridge_port())
 
     print("[supervisor] Starting Go bridge...")
     proc = subprocess.Popen(
