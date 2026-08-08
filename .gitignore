@@ -1,0 +1,21 @@
+# Sensitive
+.env
+*.db
+store/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Go binary
+wa-bridge
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

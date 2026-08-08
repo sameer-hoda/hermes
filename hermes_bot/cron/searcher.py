@@ -1,0 +1,203 @@
+import json
+import time
+
+from google import genai
+
+from hermes_bot import config
+from hermes_bot import db
+
+RELEVANCE_PROMPT = """Given the search query: "{query}"
+
+Which of these WhatsApp groups are relevant to this query?
+Respond with JSON only: a list of objects with group_jid and relevance (0-10) and a brief why.
+Only include groups with relevance >= 5.
+
+Groups:
+{group_list}"""
+
+
+SUMMARIZE_GROUP_PROMPT = """Here are recent messages from the WhatsApp group "{group_name}".
+
+Filter for information relevant to: "{query}"
+Ignore unrelated discussions.
+Summarize relevant findings in 3-5 bullet points. Focus on decisions, action items, status updates, and blockers.
+Be specific — mention names, dates, numbers where available.
+
+Messages:
+{messages}"""
+
+
+SYNTHESIS_PROMPT = """You analyzed {group_count} WhatsApp groups for relevance to "{query}".
+Per-group summaries below. Produce a cross-group synthesis.
+
+Structure your response exactly like this:
+
+🎯 *Overall picture* (2-3 sentences)
+
+📋 *Key items*
+• bullet 1
+• bullet 2
+... (top 5-7 bullets across all groups)
+
+⚠️ *Blockers / risks* (if any, otherwise skip this section)
+
+Per-group summaries:
+{all_summaries}
+
+{feedback_instruction}"""
+
+
+def _score_relevance(query: str, groups: list[dict]) -> list[dict]:
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+    relevant = []
+    batch_size = 10
+
+    for i in range(0, len(groups), batch_size):
+        batch = groups[i:i + batch_size]
+        group_list = "\n".join(
+            f"  - {g['name']} (jid: {g['jid']})" for g in batch
+        )
+
+        prompt = RELEVANCE_PROMPT.format(query=query, group_list=group_list)
+
+        try:
+            response = client.models.generate_content(
+                model=config.GEMINI_MODEL_FAST,
+                contents=prompt,
+                config={"response_mime_type": "application/json"},
+            )
+            scores = json.loads(response.text)
+            for item in scores:
+                if item.get("relevance", 0) >= 5:
+                    item["name"] = next(
+                        (g["name"] for g in batch if g["jid"] == item.get("group_jid")),
+                        item.get("group_jid", "").split("@")[0],
+                    )
+                    relevant.append(item)
+        except Exception as e:
+            print(f"[searcher] Relevance scoring error: {e}")
+            continue
+
+        if i + batch_size < len(groups):
+            time.sleep(1)
+
+    relevant.sort(key=lambda x: x.get("relevance", 0), reverse=True)
+    return relevant[:config.MAX_GROUPS_PER_SEARCH]
+
+
+def _summarize_group(query: str, group: dict) -> str:
+    messages = db.get_chat_messages(
+        group["group_jid"],
+        days=config.SEARCH_LOOKBACK_DAYS,
+        limit=config.SEARCH_MESSAGES_PER_GROUP,
+    )
+
+    formatted = "\n".join(
+        f"[{m['time'].strftime('%m/%d %H:%M')}] {m['sender']}: {m['content']}"
+        for m in messages
+    )
+
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    prompt = SUMMARIZE_GROUP_PROMPT.format(
+        group_name=group.get("name", group.get("group_jid", "")),
+        query=query,
+        messages=formatted[:8000],
+    )
+
+    try:
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_FAST,
+            contents=prompt,
+        )
+        return f"📍 *{group.get('name', 'Group')}*\n{response.text.strip()}"
+    except Exception as e:
+        print(f"[searcher] Summarize error for {group.get('name')}: {e}")
+        return f"📍 *{group.get('name', 'Group')}*\n(Unable to summarize)"
+
+
+def _synthesize(query: str, group_summaries: list[str], feedback: str = "") -> str:
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+    feedback_instruction = ""
+    if feedback:
+        feedback_instruction = f'\nUser feedback from previous run: "{feedback}". Adjust accordingly.\n'
+
+    prompt = SYNTHESIS_PROMPT.format(
+        group_count=len(group_summaries),
+        query=query,
+        all_summaries="\n\n---\n\n".join(group_summaries),
+        feedback_instruction=feedback_instruction,
+    )
+
+    try:
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_FAST,
+            contents=prompt,
+        )
+        return response.text.strip()
+    except Exception as e:
+        print(f"[searcher] Synthesis error: {e}")
+        return f"*{query}* — unable to complete synthesis. Please try again."
+
+
+def _methodology_footer(
+    total_groups: int,
+    matched_groups: int,
+    query: str,
+) -> str:
+    return (
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🔍 *Methodology*\n"
+        f"Scanned: {total_groups} groups · Matched: {matched_groups} relevant\n"
+        f"Lookback: {config.SEARCH_LOOKBACK_DAYS} days · "
+        f"Messages: ~{config.SEARCH_MESSAGES_PER_GROUP}/group\n"
+        f'Relevance filter: "{query}"\n'
+        f"Deep-dived: top {min(matched_groups, config.MAX_GROUPS_PER_SEARCH)} groups"
+    )
+
+
+def run_one_shot_search(query: str) -> str:
+    groups = db.get_active_groups(days=30)
+    if not groups:
+        return "No active groups found in the last 30 days."
+
+    relevant = _score_relevance(query, groups)
+    if not relevant:
+        return f"No groups found relevant to *{query}*.\nTry a different query or broader terms."
+
+    summaries = []
+    for group in relevant:
+        summary = _summarize_group(query, group)
+        summaries.append(summary)
+
+    synthesis = _synthesize(query, summaries)
+
+    footer = _methodology_footer(len(groups), len(relevant), query)
+
+    return f"🤖 *{query}*\n\n{synthesis}\n\n{footer}"
+
+
+def run_cron_search(query: str, feedback: str = "") -> tuple[str, str, int, int]:
+    groups = db.get_active_groups(days=30)
+    total = len(groups)
+
+    if not groups:
+        return "No active groups found.", "", total, 0
+
+    relevant = _score_relevance(query, groups)
+    matched = len(relevant)
+
+    if not relevant:
+        return f"No groups found relevant to *{query}*.", "", total, 0
+
+    summaries = []
+    for group in relevant:
+        summary = _summarize_group(query, group)
+        summaries.append(summary)
+
+    synthesis = _synthesize(query, summaries, feedback)
+
+    footer = _methodology_footer(total, matched, query)
+
+    return f"🤖 *{query}*\n\n{synthesis}\n\n{footer}", footer, total, matched
