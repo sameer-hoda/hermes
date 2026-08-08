@@ -7,9 +7,9 @@ deep-dive search across all your chats. Deploy in one click — no terminal need
 
 ### Option 1: Railway (one-click)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/9UQHtW)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/hermes-2)
 
-1. Click the button above — Railway pre-configures everything from the template.
+1. Click the button above — Railway pre-configures TCP proxy, volume, and health check from the template.
 2. Your access code appears on the login page (or set `SETUP_PASSWORD` in Railway Variables to pick your own).
 3. Follow the wizard: Gemini key → QR → pairing code → ready.
 
