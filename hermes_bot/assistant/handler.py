@@ -13,11 +13,12 @@ Respond with JSON only:
 {{
   "intent": "ask" | "cron_setup" | "cron_list" | "cron_pause" | "cron_resume" |
             "cron_delete" | "cron_feedback" | "cron_keep" | "status_check" |
-            "question" | "statement" | "help" | "greeting" | "unknown",
+            "person" | "question" | "statement" | "help" | "greeting" | "unknown",
   "query": "the extracted query or topic if applicable",
   "needs_context": true/false,
   "context_scope": "mechat_only" | "all_groups" | "specific_group",
   "group_hint": "partial group name if specific_group",
+  "person_name": "extracted person name if intent is person",
   "cron_details": {{
     "query": "",
     "frequency": "daily" | "weekdays" | "weekly" | "oneshot",
@@ -32,6 +33,7 @@ Intent guide:
 - "cron_feedback": user giving feedback on a summary. Messages like "this was too broad", "focus on decisions only"
 - "cron_keep": user wants to keep a cron job. Messages like "keep this", "like it", "save this"
 - "status_check": user wants a personal status report — what's open across all groups that needs their attention. Messages like "what's open", "what's pending on me", "catch me up", "any blockers", "what did I miss", "sitrep", "what needs my attention". NOT for topic-specific queries with a named subject like "what's happening with X".
+- "person": user is asking about a specific person. Messages like "what are chats with Miten", "updates from Rachit", "what's happening with Akshay", "what did Pallavi say", "catch me up on Mayank"
 - "question": user asking something that might need context
 - "statement": user making a statement or sharing info
 - "help": user asking for help
@@ -47,6 +49,7 @@ class Intent:
         needs_context: bool = False,
         context_scope: str = "mechat_only",
         group_hint: str = "",
+        person_name: str = "",
         cron_details: dict = None,
     ):
         self.intent = intent
@@ -54,6 +57,7 @@ class Intent:
         self.needs_context = needs_context
         self.context_scope = context_scope
         self.group_hint = group_hint
+        self.person_name = person_name
         self.cron_details = cron_details or {}
 
 
@@ -78,6 +82,7 @@ def detect_intent(session: Session, message: str) -> Intent:
             needs_context=data.get("needs_context", False),
             context_scope=data.get("context_scope", "mechat_only"),
             group_hint=data.get("group_hint", ""),
+            person_name=data.get("person_name", ""),
             cron_details=data.get("cron_details", {}),
         )
     except Exception as e:

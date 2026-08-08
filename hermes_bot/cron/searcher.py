@@ -11,40 +11,44 @@ RELEVANCE_PROMPT = """Given the search query: "{query}"
 Which of these WhatsApp groups are relevant to this query?
 Respond with JSON only: a list of objects with group_jid and relevance (0-10) and a brief why.
 Only include groups with relevance >= 5.
+Base your score on both the group name AND the sample of recent messages shown.
 
 Groups:
 {group_list}"""
 
 
-SUMMARIZE_GROUP_PROMPT = """Here are recent messages from the WhatsApp group "{group_name}".
+SUMMARIZE_GROUP_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their WhatsApp messages.
 
-Filter for information relevant to: "{query}"
-Ignore unrelated discussions.
-Summarize relevant findings in 3-5 bullet points. Focus on decisions, action items, status updates, and blockers.
-Be specific — mention names, dates, numbers where available.
+Here are recent messages from the group "{group_name}", filtered for relevance to "{query}".
+
+Your job: Summarize what matters. Structure the output naturally — use sections, bullets, or plain paragraphs based on what the content demands. Focus on:
+- Decisions made, action items assigned, and status updates
+- Blockers, risks, or escalations
+- Key facts: names, dates, numbers, commitments
+
+Be crisp and specific. Skip fluff, chatter, and resolved items. Use WhatsApp markdown: *bold* for key terms.
 
 Messages:
 {messages}"""
 
 
-SYNTHESIS_PROMPT = """You analyzed {group_count} WhatsApp groups for relevance to "{query}".
-Per-group summaries below. Produce a cross-group synthesis.
+SYNTHESIS_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their WhatsApp messages.
 
-Structure your response exactly like this:
+You analyzed {group_count} groups for relevance to "{query}". Below are per-group summaries.
 
-🎯 *Overall picture* (2-3 sentences)
+Your job: Synthesize everything into one crisp, comprehensive message for the user.
 
-📋 *Key items*
-• bullet 1
-• bullet 2
-... (top 5-7 bullets across all groups)
+Principles:
+- Decide the best structure based on what you found. Use sections only if they add clarity — never force a template.
+- Cover all key points: decisions, action items, blockers, status updates, and anything needing attention.
+- Be comprehensive but brief. Every line must earn its place.
+- Use WhatsApp markdown: *bold* for key terms, `monospace` for numbers/dates.
+- Speak directly to the user as their personal assistant. Warm but professional.
+- If nothing is urgent or blocked, say so — don't invent a crisis.
 
-⚠️ *Blockers / risks* (if any, otherwise skip this section)
-
+{feedback_instruction}
 Per-group summaries:
-{all_summaries}
-
-{feedback_instruction}"""
+{all_summaries}"""
 
 
 def _score_relevance(query: str, groups: list[dict]) -> list[dict]:
@@ -55,9 +59,19 @@ def _score_relevance(query: str, groups: list[dict]) -> list[dict]:
 
     for i in range(0, len(groups), batch_size):
         batch = groups[i:i + batch_size]
-        group_list = "\n".join(
-            f"  - {g['name']} (jid: {g['jid']})" for g in batch
-        )
+
+        parts = []
+        for g in batch:
+            recent = db.get_chat_messages(g["jid"], days=14, limit=30)
+            snippet = "N/A"
+            if recent:
+                lines = []
+                for m in recent[-10:]:
+                    lines.append(f"[{m['time'].strftime('%m/%d %H:%M')}] {m['sender']}: {m['content'][:120]}")
+                snippet = "\n".join(lines)
+            parts.append(f"  - {g['name']} (jid: {g['jid']})\n    Recent: {snippet[:600]}")
+
+        group_list = "\n".join(parts)
 
         prompt = RELEVANCE_PROMPT.format(query=query, group_list=group_list)
 
@@ -223,9 +237,9 @@ def run_one_shot_search(query: str, progress=None) -> str:
             except Exception:
                 pass
 
-    groups = db.get_active_groups(days=30)
+    groups = db.get_active_groups(days=14)
     if not groups:
-        return "No active groups found in the last 30 days."
+        return "No active groups found in the last 14 days."
 
     _say(f"🔍 Scanning *{len(groups)}* active groups for _{query[:60]}_ …")
 
@@ -250,7 +264,7 @@ def run_one_shot_search(query: str, progress=None) -> str:
 
 
 def run_cron_search(query: str, feedback: str = "") -> tuple[str, str, int, int]:
-    groups = db.get_active_groups(days=30)
+    groups = db.get_active_groups(days=14)
     total = len(groups)
 
     if not groups:
@@ -272,3 +286,61 @@ def run_cron_search(query: str, feedback: str = "") -> tuple[str, str, int, int]
     footer = _methodology_footer(total, matched, query)
 
     return f"🤖 *{query}*\n\n{synthesis}\n\n{footer}", footer, total, matched
+
+
+PERSON_SUMMARY_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their 1-on-1 WhatsApp conversations.
+
+Here are recent messages between the user and {person_name} from the last {days} days.
+
+Your job: Summarize the conversation for the user.
+
+Principles:
+- Decide the best structure based on what was discussed. Sections, bullets, or paragraphs — whatever fits.
+- Cover all key points: decisions made, promises given, action items, follow-ups needed, important info shared.
+- Be crisp and specific. Mention dates, commitments, and any open loops.
+- If there's nothing substantive, say so honestly.
+- Use WhatsApp markdown: *bold* for key terms.
+- Speak directly to the user.
+
+Messages (newest first):
+{messages}"""
+
+
+def run_person_search(person_name: str, person_jid: str, progress=None) -> str:
+    def _say(msg: str):
+        if progress:
+            try:
+                progress(msg)
+            except Exception:
+                pass
+
+    _say(f"👤 Looking up chats with *{person_name}* …")
+
+    messages = db.get_person_messages(person_jid, days=14, limit=200)
+
+    if not messages:
+        return f"No recent messages with *{person_name}* in the last 14 days."
+
+    _say(f"📋 Found *{len(messages)}* messages — summarizing …")
+
+    formatted = "\n".join(
+        f"[{m['time'].strftime('%m/%d %H:%M')}] {m['sender']}: {m['content']}"
+        for m in messages
+    )
+
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
+    prompt = PERSON_SUMMARY_PROMPT.format(
+        person_name=person_name,
+        days=14,
+        messages=formatted[:12000],
+    )
+
+    try:
+        response = client.models.generate_content(
+            model=config.GEMINI_MODEL_FAST,
+            contents=prompt,
+        )
+        return f"👤 *{person_name}*\n\n{response.text.strip()}"
+    except Exception as e:
+        print(f"[searcher] Person summary error: {e}")
+        return f"Couldn't summarize chats with *{person_name}*. Try again."

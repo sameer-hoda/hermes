@@ -102,6 +102,15 @@ def route_intent(session: Session, message: str, progress=None) -> str:
         from hermes_bot.cron.searcher import run_status_check
         return run_status_check(progress=progress)
 
+    if intent.intent == "person":
+        from hermes_bot import db
+        from hermes_bot.cron.searcher import run_person_search
+        name = intent.person_name or intent.query or message
+        contact = db.get_best_contact(name)
+        if not contact:
+            return f"I couldn't find *{name}* in your contacts. Try a different name?"
+        return run_person_search(contact["name"], contact["jid"], progress=progress)
+
     if intent.intent in ("question", "unknown"):
         if intent.needs_context and intent.context_scope == "all_groups":
             from hermes_bot.cron.searcher import run_one_shot_search

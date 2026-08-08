@@ -279,4 +279,91 @@ def is_message_from_owner(chat_jid: str, sender_jid: str) -> bool:
     conn.close()
     if row and row["pn"] == own_phone:
         return True
-    return False
+return False
+
+
+def resolve_contact_by_name(name_hint: str) -> list[dict]:
+    conn = _connect()
+    pattern = f"%{name_hint}%"
+    rows = conn.execute(
+        """
+        SELECT their_jid,
+               COALESCE(full_name, push_name, first_name, business_name) AS name
+        FROM wa.whatsmeow_contacts
+        WHERE COALESCE(full_name, push_name, first_name, business_name) LIKE ?
+        """,
+        (pattern,),
+    ).fetchall()
+    conn.close()
+    return [{"jid": r["their_jid"], "name": r["name"]} for r in rows]
+
+
+def get_best_contact(name_hint: str) -> dict | None:
+    candidates = resolve_contact_by_name(name_hint)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    conn = _connect()
+    placeholders = ",".join("?" for _ in candidates)
+    jids = [c["jid"] for c in candidates]
+    rows = conn.execute(
+        f"SELECT chat_jid, COUNT(*) AS cnt FROM messages WHERE chat_jid IN ({placeholders}) GROUP BY chat_jid ORDER BY cnt DESC",
+        jids,
+    ).fetchall()
+    conn.close()
+
+    msg_counts = {r["chat_jid"]: r["cnt"] for r in rows}
+    best = max(candidates, key=lambda c: msg_counts.get(c["jid"], 0))
+    return best
+
+
+def get_person_messages(person_jid: str, days: int = 14, limit: int = 200) -> list[dict]:
+    threshold = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(days=days)
+    ).isoformat()
+
+    conn = _connect()
+    rows = conn.execute(
+        """
+        SELECT m.content, m.timestamp, m.is_from_me,
+               COALESCE(c.full_name, c.push_name, c.first_name,
+                         c.business_name) AS contact_name,
+               ms.sender_jid
+        FROM messages m
+        LEFT JOIN wa.whatsmeow_message_secrets ms
+            ON m.id = ms.message_id AND m.chat_jid = ms.chat_jid
+        LEFT JOIN wa.whatsmeow_contacts c
+            ON ms.sender_jid = c.their_jid
+        WHERE m.chat_jid = ?
+          AND m.timestamp >= ?
+          AND m.content IS NOT NULL
+          AND m.content != ''
+        ORDER BY m.timestamp DESC
+        LIMIT ?
+        """,
+        (person_jid, threshold, limit),
+    ).fetchall()
+    conn.close()
+
+    results = []
+    for r in reversed(rows):
+        try:
+            dt = datetime.datetime.fromisoformat(r["timestamp"].replace(" ", "T"))
+        except (ValueError, AttributeError):
+            dt = datetime.datetime.now(datetime.timezone.utc)
+
+        sender = "You" if r["is_from_me"] else (
+            r["contact_name"]
+            or (r["sender_jid"].split("@")[0] if r["sender_jid"] else "Unknown")
+        )
+
+        results.append({
+            "time": dt,
+            "sender": sender,
+            "content": r["content"].strip(),
+            "is_from_me": bool(r["is_from_me"]),
+        })
+    return results
