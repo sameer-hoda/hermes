@@ -101,8 +101,18 @@ func loadSetup() {
 	}
 	json.Unmarshal(data, &setupData)
 	if setupData.State == "" {
-		setupData.State = string(resolveStateLocked())
+		setupData.State = string(StateNeedsAPIKey)
 	}
+	// Re-resolve: stored state must match actual conditions
+	resolved := resolveStateLocked()
+	if resolved == StateNeedsAPIKey && setupData.State != string(StateNeedsAPIKey) {
+		setupData.State = string(StateNeedsAPIKey)
+	}
+	if resolved == StateNeedsQR && setupData.State == string(StateNeedsAPIKey) && setupData.GeminiKeySet {
+		setupData.State = string(StateNeedsQR)
+	}
+	setupData.UpdatedAt = time.Now().Format(time.RFC3339)
+	saveSetupLocked()
 }
 
 func saveSetup() {
