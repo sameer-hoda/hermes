@@ -1842,6 +1842,9 @@ func main() {
 			if setupData.State == string(StateNeedsMeChat) && setupData.MeChatJID != "" {
 				setupData.State = string(StateReady)
 			}
+			if setupData.State == string(StateNeedsMeChat) && activePairingCode == "" {
+				generatePairingCode()
+			}
 		}
 		setupData.UpdatedAt = time.Now().Format(time.RFC3339)
 		saveSetupLocked()
@@ -1890,6 +1893,43 @@ func main() {
 			setupMu.Unlock()
 		}
 	})
+
+	// ── Start HTTP servers BEFORE connection so wizard is available during QR ──
+	publicPort := 8080
+	for _, envKey := range []string{"BRIDGE_PORT", "PORT"} {
+		if p := os.Getenv(envKey); p != "" {
+			if n, err := strconv.Atoi(p); err == nil && n > 0 {
+				publicPort = n
+				break
+			}
+		}
+	}
+
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc("/", serveWizard)
+	publicMux.HandleFunc("/health", handleHealth)
+	publicMux.HandleFunc("/setup/login", handleLogin)
+	publicMux.HandleFunc("/setup/state", withAuth(handleSetupState(client)))
+	publicMux.HandleFunc("/setup/gemini-key", withAuth(handleGeminiKey))
+	publicMux.HandleFunc("/setup/pairing/regenerate", withAuth(handlePairingRegenerate))
+	publicMux.HandleFunc("/setup/repair-mechat", withAuth(handleRepairMechat))
+	publicMux.HandleFunc("/setup/reset", withAuth(handleReset(client)))
+
+	go func() {
+		addr := fmt.Sprintf(":%d", publicPort)
+		fmt.Printf("Starting public server on %s...\n", addr)
+		if err := http.ListenAndServe(addr, publicMux); err != nil {
+			fmt.Printf("Public server error: %v\n", err)
+		}
+	}()
+
+	internalPort := 8081
+	if p := os.Getenv("BRIDGE_INTERNAL_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil && n > 0 {
+			internalPort = n
+		}
+	}
+	startInternalServer(client, messageStore, internalPort)
 
 	// ── Connection ──
 	connected := make(chan bool, 1)
@@ -1978,45 +2018,7 @@ func main() {
 		mechatJID = envMechatJID
 	}
 
-	// ── Public listener ──
-	publicPort := 8080
-	for _, envKey := range []string{"BRIDGE_PORT", "PORT"} {
-		if p := os.Getenv(envKey); p != "" {
-			if n, err := strconv.Atoi(p); err == nil && n > 0 {
-				publicPort = n
-				break
-			}
-		}
-	}
-
-	publicMux := http.NewServeMux()
-	publicMux.HandleFunc("/", serveWizard)
-	publicMux.HandleFunc("/health", handleHealth)
-	publicMux.HandleFunc("/setup/login", handleLogin)
-	publicMux.HandleFunc("/setup/state", withAuth(handleSetupState(client)))
-	publicMux.HandleFunc("/setup/gemini-key", withAuth(handleGeminiKey))
-	publicMux.HandleFunc("/setup/pairing/regenerate", withAuth(handlePairingRegenerate))
-	publicMux.HandleFunc("/setup/repair-mechat", withAuth(handleRepairMechat))
-	publicMux.HandleFunc("/setup/reset", withAuth(handleReset(client)))
-
-	go func() {
-		addr := fmt.Sprintf(":%d", publicPort)
-		fmt.Printf("Starting public server on %s...\n", addr)
-		if err := http.ListenAndServe(addr, publicMux); err != nil {
-			fmt.Printf("Public server error: %v\n", err)
-		}
-	}()
-
-	// ── Internal listener ──
-	internalPort := 8081
-	if p := os.Getenv("BRIDGE_INTERNAL_PORT"); p != "" {
-		if n, err := strconv.Atoi(p); err == nil && n > 0 {
-			internalPort = n
-		}
-	}
-	startInternalServer(client, messageStore, internalPort)
-
-	// ── Signal handling ──
+// ── Signal handling ──
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, syscall.SIGINT, syscall.SIGTERM)
 
