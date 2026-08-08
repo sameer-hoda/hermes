@@ -89,6 +89,7 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
     <h2>Console Access</h2>
     <p>Enter the console access code shown in the bridge startup output.</p>
     <input type="password" id="login-password" placeholder="Access code">
+    <div id="login-code-display" class="alert alert-info hidden"></div>
     <div id="login-error" class="alert alert-error hidden"></div>
     <button class="btn btn-primary" onclick="doLogin()">Enter</button>
   </div>
@@ -346,6 +347,15 @@ function pollState() {
 
 // Start with login screen
 showScreen('screen-login');
+
+// Check if auto-generated access code should be shown
+fetch('/setup/info').then(function(r) { return r.json(); }).then(function(data) {
+  if (!data.password_configured && data.access_code) {
+    var display = document.getElementById('login-code-display');
+    display.innerHTML = 'Your access code is: <strong>' + data.access_code + '</strong><br><small>Set <code>SETUP_PASSWORD</code> in Railway Variables to pick your own.</small>';
+    display.classList.remove('hidden');
+  }
+}).catch(function() {});
 
 // Poll every 2s
 setInterval(function() {

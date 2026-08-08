@@ -12,8 +12,8 @@ deep-dive search across all your chats. Deploy in one click — no terminal need
 1. Click the button above — Railway auto-detects the `Dockerfile`.
 2. After deploy, go to the service **Settings → Networking** → enable **TCP Proxy** on port `8080` (this generates your public URL)
 3. Go to **Settings → Volumes** → attach a volume at mount path `/data`
-4. Check **Deploy Logs** for the one-time console access code (`>>> Setup console access code: xxxxxxxx <<<`)
-5. Open the public URL and follow the setup wizard
+4. Open the public URL — your access code appears on the login page. **Optional:** set `SETUP_PASSWORD` in Railway Variables to choose your own password.
+5. Follow the setup wizard (Gemini key → QR → pairing code → ready)
 
 ### Option 2: Hostinger VPS / Any Docker Host
 

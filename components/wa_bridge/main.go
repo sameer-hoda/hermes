@@ -1142,6 +1142,18 @@ func startInternalServer(client *whatsmeow.Client, messageStore *MessageStore, p
 // Setup HTTP endpoints (public listener)
 // ────────────────────────────────────────────────────────────────────
 
+func handleSetupInfo(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	configured := os.Getenv("SETUP_PASSWORD") != ""
+	resp := map[string]interface{}{
+		"password_configured": configured,
+	}
+	if !configured {
+		resp["access_code"] = setupPassword
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	setupMu.RLock()
 	state := setupData.State
@@ -1919,6 +1931,7 @@ func main() {
 	publicMux.HandleFunc("/", serveWizard)
 	publicMux.HandleFunc("/health", handleHealth)
 	publicMux.HandleFunc("/setup/login", handleLogin)
+	publicMux.HandleFunc("/setup/info", handleSetupInfo)
 	publicMux.HandleFunc("/setup/state", withAuth(handleSetupState(client)))
 	publicMux.HandleFunc("/setup/gemini-key", withAuth(handleGeminiKey))
 	publicMux.HandleFunc("/setup/pairing/regenerate", withAuth(handlePairingRegenerate))
