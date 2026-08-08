@@ -279,7 +279,7 @@ def is_message_from_owner(chat_jid: str, sender_jid: str) -> bool:
     conn.close()
     if row and row["pn"] == own_phone:
         return True
-return False
+    return False
 
 
 def resolve_contact_by_name(name_hint: str) -> list[dict]:
