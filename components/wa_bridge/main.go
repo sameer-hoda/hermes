@@ -1934,8 +1934,9 @@ func main() {
 	// ── Connection ──
 	connected := make(chan bool, 1)
 	if client.Store.ID == nil {
+		// Only advance past NEEDS_API_KEY if gemini key is already set
 		setupMu.Lock()
-		if setupData.State == string(StateNeedsAPIKey) {
+		if setupData.State == string(StateNeedsAPIKey) && setupData.GeminiKeySet {
 			setupData.State = string(StateNeedsQR)
 		}
 		saveSetupLocked()
@@ -1971,8 +1972,8 @@ func main() {
 		select {
 		case <-connected:
 			fmt.Println("\nSuccessfully connected and authenticated!")
-		case <-time.After(3 * time.Minute):
-			logger.Errorf("Timeout waiting for QR code scan")
+		case <-time.After(30 * time.Minute):
+			logger.Errorf("Timeout waiting for QR code scan (30 min)")
 			return
 		}
 	} else {
