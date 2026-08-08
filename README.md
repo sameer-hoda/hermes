@@ -7,13 +7,11 @@ deep-dive search across all your chats. Deploy in one click — no terminal need
 
 ### Option 1: Railway (one-click)
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new?template=https://github.com/sameer-hoda/hermes)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/9UQHtW)
 
-1. Click the button above — Railway auto-detects the `Dockerfile`.
-2. After deploy, go to the service **Settings → Networking** → enable **TCP Proxy** on port `8080` (this generates your public URL)
-3. Go to **Settings → Volumes** → attach a volume at mount path `/data`
-4. Open the public URL — your access code appears on the login page. **Optional:** set `SETUP_PASSWORD` in Railway Variables to choose your own password.
-5. Follow the setup wizard (Gemini key → QR → pairing code → ready)
+1. Click the button above — Railway pre-configures everything from the template.
+2. Your access code appears on the login page (or set `SETUP_PASSWORD` in Railway Variables to pick your own).
+3. Follow the wizard: Gemini key → QR → pairing code → ready.
 
 ### Option 2: Hostinger VPS / Any Docker Host
 
