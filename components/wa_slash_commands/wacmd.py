@@ -14,6 +14,7 @@ import sys
 import os
 import argparse
 import logging
+import sqlite3
 import time
 import requests
 import json
@@ -401,11 +402,49 @@ HELP_TEXT = """\
 
 
 # ── Security ──────────────────────────────────────────────────────────────────
+
+_LID_MAP_CACHE: dict[str, str] = {}
+
+
+def _get_wa_db():
+    db_path = os.getenv("WHATSAPP_DB_PATH", os.getenv("STORE_DIR", os.path.join(_dir, "..", "..", "hermes_bot", "store")) + "/whatsapp.db")
+    if not os.path.exists(db_path):
+        db_path = os.getenv("STORE_DIR", os.path.join(_dir, "..", "..", "hermes_bot", "store")) + "/whatsapp.db"
+        if not os.path.exists(db_path):
+            return None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _resolve_phone_from_jid(jid: str) -> str | None:
+    """Extract phone number from a JID, resolving LID → phone if needed."""
+    if not jid:
+        return None
+    base = jid.split(":")[0].split("@")[0]
+    if "@lid" in jid:
+        if base in _LID_MAP_CACHE:
+            return _LID_MAP_CACHE[base]
+        try:
+            conn = _get_wa_db()
+            if conn:
+                row = conn.execute(
+                    "SELECT pn FROM whatsmeow_lid_map WHERE lid = ?", (base,)
+                ).fetchone()
+                if row:
+                    _LID_MAP_CACHE[base] = row[0]
+                    return row[0]
+        except Exception:
+            pass
+        return None
+    return base
+
+
 def _is_owner(chat_jid: str, sender_jid: str) -> bool:
     if not OWNER_JID:
         return False
-    base_sender = sender_jid.split(":")[0].split("@")[0]
     base_owner = OWNER_JID.split(":")[0].split("@")[0]
+    base_sender = _resolve_phone_from_jid(sender_jid)
     return base_sender == base_owner
 
 

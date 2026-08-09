@@ -958,6 +958,16 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 				return
 			}
 
+			setupMu.RLock()
+			currentMechatJID := setupData.MeChatJID
+			setupMu.RUnlock()
+
+			// MeChat: never spawn handlers for slash commands — keep the assistant chat clean
+			if currentMechatJID != "" && chatJID == currentMechatJID && strings.HasPrefix(content, "/") {
+				logger.Infof("Skipping slash command in MeChat: %s", content)
+				return
+			}
+
 			if strings.HasPrefix(content, "/") {
 				go func() {
 					scriptPath := "wacmd.py"
@@ -984,7 +994,7 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 			}
 
 			setupMu.RLock()
-			currentMechatJID := setupData.MeChatJID
+			currentMechatJID = setupData.MeChatJID
 			setupMu.RUnlock()
 
 			if currentMechatJID != "" && !strings.HasPrefix(content, "/") && !isRecentlySent(content) {
