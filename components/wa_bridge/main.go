@@ -1144,12 +1144,8 @@ func startInternalServer(client *whatsmeow.Client, messageStore *MessageStore, p
 
 func handleSetupInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	configured := os.Getenv("SETUP_PASSWORD") != ""
 	resp := map[string]interface{}{
-		"password_configured": configured,
-	}
-	if !configured {
-		resp["access_code"] = setupPassword
+		"password_set": setupPassword != "",
 	}
 	json.NewEncoder(w).Encode(resp)
 }
@@ -1401,6 +1397,55 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "hermes_auth",
 		Value:    cookieValue,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   24 * 60 * 60,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+}
+
+func handleSetPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if setupPassword != "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "password already set"})
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	pw := strings.TrimSpace(req.Password)
+	if len(pw) < 6 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "password must be at least 6 characters"})
+		return
+	}
+
+	setupPassword = pw
+	os.WriteFile(storePath("console_password"), []byte(setupPassword), 0600)
+	fmt.Println(">>> Console password has been set by first visitor <<<")
+
+	token := fmt.Sprintf("%d", time.Now().Unix())
+	sig := signCookie(token)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "hermes_auth",
+		Value:    token + ":" + sig,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
@@ -1785,10 +1830,15 @@ func main() {
 	// ── Setup password ──
 	setupPassword = os.Getenv("SETUP_PASSWORD")
 	if setupPassword == "" {
-		setupPassword = generatePassword()
-		os.WriteFile(storePath("console_password"), []byte(setupPassword), 0600)
+		if data, err := os.ReadFile(storePath("console_password")); err == nil && len(data) > 0 {
+			setupPassword = strings.TrimSpace(string(data))
+		}
 	}
-	fmt.Printf("\n>>> Setup console access code: %s <<<\n\n", setupPassword)
+	if setupPassword != "" {
+		fmt.Printf("\n>>> Hermes console is password-protected <<<\n\n")
+	} else {
+		fmt.Printf("\n>>> Hermes console: no password yet — first visitor creates one <<<\n\n")
+	}
 
 	// ── Load state ──
 	loadSetup()
@@ -1932,6 +1982,7 @@ func main() {
 	publicMux.HandleFunc("/health", handleHealth)
 	publicMux.HandleFunc("/setup/login", handleLogin)
 	publicMux.HandleFunc("/setup/info", handleSetupInfo)
+	publicMux.HandleFunc("/setup/set-password", handleSetPassword)
 	publicMux.HandleFunc("/setup/state", withAuth(handleSetupState(client)))
 	publicMux.HandleFunc("/setup/gemini-key", withAuth(handleGeminiKey))
 	publicMux.HandleFunc("/setup/pairing/regenerate", withAuth(handlePairingRegenerate))

@@ -83,13 +83,26 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 <body>
 <div class="container">
 
+  <!-- Set Password (first visit) -->
+  <div id="screen-set-password" class="card hidden">
+    <h1>Hermes</h1>
+    <h2>Create Console Password</h2>
+    <p>Set a password to secure your Hermes console. Choose something you'll remember.</p>
+    <input type="password" id="set-pw-input" placeholder="Password (min 6 characters)">
+    <input type="password" id="set-pw-confirm" placeholder="Confirm password">
+    <div id="set-pw-error" class="alert alert-error hidden"></div>
+    <button class="btn btn-primary" onclick="doSetPassword()">Set Password</button>
+    <p style="font-size:12px;margin-top:12px;color:#484f58">
+      After creation, your password is stored securely on the server and survives restarts.
+    </p>
+  </div>
+
   <!-- Login -->
-  <div id="screen-login" class="card">
+  <div id="screen-login" class="card hidden">
     <h1>Hermes</h1>
     <h2>Console Access</h2>
-    <p>Enter the console access code shown in the bridge startup output.</p>
-    <input type="password" id="login-password" placeholder="Access code">
-    <div id="login-code-display" class="alert alert-info hidden"></div>
+    <p>Enter your console password.</p>
+    <input type="password" id="login-password" placeholder="Password">
     <div id="login-error" class="alert alert-error hidden"></div>
     <button class="btn btn-primary" onclick="doLogin()">Enter</button>
   </div>
@@ -180,13 +193,35 @@ function api(path, method, body) {
 }
 
 function showScreen(id) {
-  var screens = ['screen-login','screen-apikey','screen-qr','screen-pairing','screen-dashboard'];
+  var screens = ['screen-set-password','screen-login','screen-apikey','screen-qr','screen-pairing','screen-dashboard'];
   screens.forEach(s => document.getElementById(s).classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 }
 
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }
+
+// Set Password (first visit)
+function doSetPassword() {
+  var pw = document.getElementById('set-pw-input').value;
+  var confirm = document.getElementById('set-pw-confirm').value;
+  var err = document.getElementById('set-pw-error');
+  hide(err);
+  if (!pw) { err.textContent = 'Please enter a password'; show(err); return; }
+  if (pw.length < 6) { err.textContent = 'Password must be at least 6 characters'; show(err); return; }
+  if (pw !== confirm) { err.textContent = 'Passwords do not match'; show(err); return; }
+  api('/setup/set-password', 'POST', {password: pw}).then(function(data) {
+    if (data.ok) {
+      showScreen('screen-apikey');
+    } else {
+      err.textContent = data.error || 'Failed to set password';
+      show(err);
+    }
+  }).catch(function() {
+    err.textContent = 'Connection error';
+    show(err);
+  });
+}
 
 // Login
 function doLogin() {
@@ -345,29 +380,35 @@ function pollState() {
   });
 }
 
-// Start with login screen
-showScreen('screen-login');
-
-// Check if auto-generated access code should be shown
+// Start: show set-password or login depending on whether password already exists
 fetch('/setup/info').then(function(r) { return r.json(); }).then(function(data) {
-  if (!data.password_configured && data.access_code) {
-    var display = document.getElementById('login-code-display');
-    display.innerHTML = 'Your access code is: <strong>' + data.access_code + '</strong><br><small>Set <code>SETUP_PASSWORD</code> in Railway Variables to pick your own.</small>';
-    display.classList.remove('hidden');
+  if (data.password_set) {
+    showScreen('screen-login');
+  } else {
+    showScreen('screen-set-password');
   }
-}).catch(function() {});
+}).catch(function() {
+  showScreen('screen-login');
+});
 
 // Poll every 2s
 setInterval(function() {
   updateTimer();
   var login = document.getElementById('screen-login');
-  if (!login.classList.contains('hidden')) return;
+  var setPw = document.getElementById('screen-set-password');
+  if (!login.classList.contains('hidden') || !setPw.classList.contains('hidden')) return;
   pollState();
 }, 2000);
 
-// Enter key to login
+// Enter key handlers
 document.getElementById('login-password').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doLogin();
+});
+document.getElementById('set-pw-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('set-pw-confirm').focus();
+});
+document.getElementById('set-pw-confirm').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doSetPassword();
 });
 document.getElementById('api-key-input').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') submitApiKey();
