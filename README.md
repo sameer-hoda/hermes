@@ -2,6 +2,8 @@
 
 **Mosaic** is an AI assistant that lives in your WhatsApp. It reads your group chats, tracks what's pending on you, and answers questions like "what's the latest on the widget launch?" — instantly, without opening Slack, email, or any other app.
 
+![Mosaic — ask in one chat, it reads the rest](docs/assets/mosaic-showcase.png)
+
 ---
 
 ## Why Mosaic
