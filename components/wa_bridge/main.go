@@ -273,7 +273,7 @@ var (
 func generatePairingCode() string {
 	pairingCodeMu.Lock()
 	defer pairingCodeMu.Unlock()
-	code := fmt.Sprintf("HERMES-%04d", rand.Intn(10000))
+	code := fmt.Sprintf("MOSAIC-%04d", rand.Intn(10000))
 	activePairingCode = code
 	pairingCodeExpiry = time.Now().Add(10 * time.Minute)
 	return code
@@ -889,7 +889,7 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 				}()
 				return
 			}
-			if strings.HasPrefix(strings.TrimSpace(content), "HERMES-") && !messageIsFromOwner(client, msg) {
+			if strings.HasPrefix(strings.TrimSpace(content), "MOSAIC-") && !messageIsFromOwner(client, msg) {
 				return
 			}
 		}
