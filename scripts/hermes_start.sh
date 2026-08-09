@@ -6,7 +6,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 HERMES_DIR="$PROJECT_DIR/hermes_bot"
 BRIDGE_DIR="$PROJECT_DIR/components/wa_bridge"
 
-echo "=== Hermes — WhatsApp Personal Assistant ==="
+echo "=== Mosaic — WhatsApp Personal Assistant ==="
 echo ""
 
 # Build Go bridge if needed
@@ -22,6 +22,6 @@ fi
 mkdir -p "$HERMES_DIR/store"
 export STORE_DIR="${STORE_DIR:-$HERMES_DIR/store}"
 
-# Launch Hermes
+# Launch Mosaic
 cd "$PROJECT_DIR"
 exec python3 -m hermes_bot.main

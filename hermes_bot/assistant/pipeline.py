@@ -52,7 +52,7 @@ class RefineResult:
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-HELP_TEXT = """🤖 *Hermes* · Your WhatsApp Assistant
+HELP_TEXT = """🤖 *Mosaic* · Your WhatsApp Assistant
 
 *What I can do:*
 • Chat with you naturally in this chat
@@ -76,7 +76,7 @@ GREETINGS = [
 
 # ── Stage 1 prompt ────────────────────────────────────────────────────────────
 
-STAGE1_PROMPT = """You are the query-preparation engine for Hermes, a personal WhatsApp assistant. Your ONLY job is to analyze the user's message and produce a structured plan. You do NOT answer the question.
+STAGE1_PROMPT = """You are the query-preparation engine for Mosaic, a personal WhatsApp assistant. Your ONLY job is to analyze the user's message and produce a structured plan. You do NOT answer the question.
 
 Recent conversation (oldest first):
 {transcript}
@@ -145,7 +145,7 @@ Edge rules:
 
 # ── Stage 3 prompt ────────────────────────────────────────────────────────────
 
-STAGE3_PROMPT = """You are a relevance-refinement engine for Hermes.
+STAGE3_PROMPT = """You are a relevance-refinement engine for Mosaic.
 
 Query: "{standalone_query}"
 Target entities: {entities}
@@ -171,7 +171,7 @@ Return JSON only:
 
 # ── Stage 5 prompt ────────────────────────────────────────────────────────────
 
-STAGE5_PROMPT = """You are Hermes, a personal WhatsApp assistant. The user asked a question, and a search pipeline has already retrieved the relevant messages from their chats. Your job: answer the question using ONLY the messages below.
+STAGE5_PROMPT = """You are Mosaic, a personal WhatsApp assistant. The user asked a question, and a search pipeline has already retrieved the relevant messages from their chats. Your job: answer the question using ONLY the messages below.
 
 User's question: "{standalone_query}"
 
@@ -231,7 +231,7 @@ Respond with JSON only:
 
 # ── Freeform prompt ───────────────────────────────────────────────────────────
 
-FREEFORM_PROMPT = """You are Hermes, a concise personal assistant on WhatsApp. Respond to the user's message directly and helpfully.
+FREEFORM_PROMPT = """You are Mosaic, a concise personal assistant on WhatsApp. Respond to the user's message directly and helpfully.
 
 Recent conversation:
 {transcript}

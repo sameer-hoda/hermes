@@ -29,11 +29,11 @@ def _drain_bridge_output(proc):
 
 def _shutdown(signum, frame):
     global _running
-    print("\n[hermes] Shutting down...")
+    print("\n[mosaic] Shutting down...")
     _running = False
     scheduler.stop()
     try:
-        enqueue_to_mechat("⚠️ *Hermes* · Offline")
+        enqueue_to_mechat("⚠️ *Mosaic* · Offline")
     except Exception:
         pass
     sys.exit(0)
@@ -54,29 +54,29 @@ def main():
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    print("[hermes] Starting Hermes...")
-    print(f"[hermes] Bridge URL: {config.BRIDGE_URL}")
-    print(f"[hermes] Messages DB: {config.MESSAGES_DB}")
-    print(f"[hermes] Store Dir: {config.STORE_DIR}")
+    print("[mosaic] Starting Mosaic...")
+    print(f"[mosaic] Bridge URL: {config.BRIDGE_URL}")
+    print(f"[mosaic] Messages DB: {config.MESSAGES_DB}")
+    print(f"[mosaic] Store Dir: {config.STORE_DIR}")
 
     proc = supervisor.start_bridge()
     _drain_bridge_output(proc)
 
     if not supervisor.wait_for_readiness(timeout=180):
         proc.terminate()
-        print("[hermes] Bridge failed to start. Exiting.")
+        print("[mosaic] Bridge failed to start. Exiting.")
         sys.exit(1)
 
-    print("[hermes] Bridge ready. Starting services...")
+    print("[mosaic] Bridge ready. Starting services...")
     start_flush_thread()
     scheduler.start()
 
     was_ready = False
-    print("[hermes] All systems go. Waiting for setup to complete...\n")
+    print("[mosaic] All systems go. Waiting for setup to complete...\n")
 
     while _running:
         if proc.poll() is not None:
-            print("[hermes] Bridge exited. Restarting...")
+            print("[mosaic] Bridge exited. Restarting...")
             time.sleep(2)
             proc = supervisor.start_bridge()
             _drain_bridge_output(proc)
@@ -87,16 +87,16 @@ def main():
         
         if state == "READY" and not was_ready:
             was_ready = True
-            print("[hermes] Setup complete! Hermes is READY.")
+            print("[mosaic] Setup complete! Mosaic is READY.")
             try:
                 mechat = get_mechat_chat_jid()
                 phone = get_own_phone()
-                enqueue_to_mechat(f"🤖 *Hermes* · Ready\nID: `{phone}`\n/help for commands")
+                enqueue_to_mechat(f"🤖 *Mosaic* · Ready\nID: `{phone}`\n/help for commands")
             except Exception as e:
-                print(f"[hermes] Welcome message failed: {e}")
+                print(f"[mosaic] Welcome message failed: {e}")
         
         elif state == "RESETTING":
-            print("[hermes] Reset in progress, waiting for restart...")
+            print("[mosaic] Reset in progress, waiting for restart...")
         
         time.sleep(2)
 

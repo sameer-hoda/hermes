@@ -17,7 +17,7 @@ Groups:
 {group_list}"""
 
 
-SUMMARIZE_GROUP_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their WhatsApp messages.
+SUMMARIZE_GROUP_PROMPT = """You are Mosaic — a personal assistant helping the user stay on top of their WhatsApp messages.
 
 Here are recent messages from the group "{group_name}", filtered for relevance to "{query}".
 
@@ -32,7 +32,7 @@ Messages:
 {messages}"""
 
 
-SYNTHESIS_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their WhatsApp messages.
+SYNTHESIS_PROMPT = """You are Mosaic — a personal assistant helping the user stay on top of their WhatsApp messages.
 
 You analyzed {group_count} groups for relevance to "{query}". Below are per-group summaries.
 
@@ -171,7 +171,7 @@ def _methodology_footer(
     )
 
 
-STATUS_CHECK_PROMPT = """You are Hermes — a personal assistant generating a situation report for the user.
+STATUS_CHECK_PROMPT = """You are Mosaic — a personal assistant generating a situation report for the user.
 Scan these messages from the last {hours} hours across all WhatsApp groups.
 
 The sender "You" = the user themselves. Messages from the user start with "You:".
@@ -307,7 +307,7 @@ def run_cron_search(query: str, feedback: str = "") -> tuple[str, str, int, int]
     return f"🤖 *{query}*\n\n{synthesis}\n\n{footer}", footer, total, matched
 
 
-PERSON_SUMMARY_PROMPT = """You are Hermes — a personal assistant helping the user stay on top of their 1-on-1 WhatsApp conversations.
+PERSON_SUMMARY_PROMPT = """You are Mosaic — a personal assistant helping the user stay on top of their 1-on-1 WhatsApp conversations.
 
 Here are recent messages between the user and {person_name} from the last {days} days.
 

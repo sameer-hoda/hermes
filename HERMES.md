@@ -1,4 +1,4 @@
-# Hermes — Project Overview & Build Log
+# Mosaic (formerly Hermes) — Project Overview & Build Log
 
 > **Date:** 2026-08-08
 > **Status:** Working prototype. Slash commands + MeChat assistant verified end-to-end.

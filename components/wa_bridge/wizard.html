@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hermes Setup</title>
+<title>Mosaic Setup</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -85,9 +85,9 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 
   <!-- Set Password (first visit) -->
   <div id="screen-set-password" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <h2>Create Console Password</h2>
-    <p>Set a password to secure your Hermes console. Choose something you'll remember.</p>
+    <p>Set a password to secure your Mosaic console. Choose something you'll remember.</p>
     <input type="password" id="set-pw-input" placeholder="Password (min 6 characters)">
     <input type="password" id="set-pw-confirm" placeholder="Confirm password">
     <div id="set-pw-error" class="alert alert-error hidden"></div>
@@ -99,7 +99,7 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 
   <!-- Login -->
   <div id="screen-login" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <h2>Console Access</h2>
     <p>Enter your console password.</p>
     <input type="password" id="login-password" placeholder="Password">
@@ -109,7 +109,7 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 
   <!-- API Key -->
   <div id="screen-apikey" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <h2>Step 1: Gemini API Key</h2>
     <p>Get a free API key at <a href="https://aistudio.google.com" target="_blank" style="color:#58a6ff">aistudio.google.com</a></p>
     <input type="password" id="api-key-input" placeholder="Paste your API key">
@@ -120,7 +120,7 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 
   <!-- QR -->
   <div id="screen-qr" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <h2>Step 2: Link WhatsApp</h2>
     <p>Scan this QR code with your WhatsApp app (Settings &rarr; Linked Devices)</p>
     <div id="qr-container">
@@ -132,21 +132,21 @@ label { font-size: 14px; color: #8b949e; display: block; margin-bottom: 8px; }
 
   <!-- Pairing -->
   <div id="screen-pairing" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <h2>Step 3: Pair Your Chat</h2>
     <p>Send this code from <strong>your own WhatsApp</strong> to any chat (e.g. yourself):</p>
     <div class="code-display" id="pairing-code">----</div>
     <p class="code-timer" id="code-timer">Expires in --:--</p>
     <p style="color:#8b949e; font-size:13px">
       Send the exact code as a text message to any chat (including yourself).
-      Hermes will detect it and pair this chat as your assistant chat.
+      Mosaic will detect it and pair this chat as your assistant chat.
     </p>
     <button class="btn btn-primary" id="new-code-btn" onclick="regenerateCode()">New Code</button>
   </div>
 
   <!-- Dashboard -->
   <div id="screen-dashboard" class="card hidden">
-    <h1>Hermes</h1>
+    <h1>Mosaic</h1>
     <div style="margin-bottom:16px">
       <span class="status-dot" id="status-dot"></span>
       <span id="status-text" style="font-size:14px">Connected</span>

@@ -5,7 +5,7 @@ from google import genai
 from hermes_bot import config
 from hermes_bot.assistant.session import Session
 
-RESPONDER_PROMPT = """You are Hermes, a concise personal assistant on WhatsApp.
+RESPONDER_PROMPT = """You are Mosaic, a concise personal assistant on WhatsApp.
 Respond to the user's message directly and helpfully.
 
 User message: "{message}"
@@ -37,7 +37,7 @@ def respond_freeform(session: Session, message: str) -> str:
         return "Got it. What would you like me to help with?"
 
 
-HELP_TEXT = """🤖 *Hermes* · Your WhatsApp Assistant
+HELP_TEXT = """🤖 *Mosaic* · Your WhatsApp Assistant
 
 *What I can do:*
 • Chat with you naturally in this chat

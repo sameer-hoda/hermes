@@ -885,7 +885,7 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 				setupMu.Unlock()
 
 				go func() {
-					sendWhatsAppMessage(client, chatJID, "✅ *Hermes paired to this chat.*\nThis is now your assistant chat.\nSend /help to see what I can do.", "")
+					sendWhatsAppMessage(client, chatJID, "✅ *Mosaic paired to this chat.*\nThis is now your assistant chat.\nSend /help to see what I can do.", "")
 				}()
 				return
 			}
@@ -913,7 +913,7 @@ func handleMessage(client *whatsmeow.Client, messageStore *MessageStore, msg *ev
 				setupMu.RUnlock()
 
 				if mechatForReset != "" {
-					sendWhatsAppMessage(client, mechatForReset, "⚠️ *Hermes is being reset by its owner.*", "")
+					sendWhatsAppMessage(client, mechatForReset, "⚠️ *Mosaic is being reset by its owner.*", "")
 				}
 				client.Logout(context.Background())
 
@@ -1327,7 +1327,7 @@ func handleReset(client *whatsmeow.Client) http.HandlerFunc {
 		setupMu.RUnlock()
 
 		if mechatJID != "" {
-			sendWhatsAppMessage(client, mechatJID, "⚠️ *Hermes is being reset by its owner.*", "")
+			sendWhatsAppMessage(client, mechatJID, "⚠️ *Mosaic is being reset by its owner.*", "")
 		}
 
 		client.Logout(context.Background())
@@ -1825,7 +1825,7 @@ func main() {
 	os.MkdirAll(storePath(""), 0755)
 
 	logger := waLog.Stdout("Client", "INFO", true)
-	logger.Infof("Starting Hermes bridge...")
+	logger.Infof("Starting Mosaic bridge...")
 
 	ownerPhone = os.Getenv("OWNER_PHONE_NUMBER")
 	if ownerPhone != "" {
@@ -1845,9 +1845,9 @@ func main() {
 		}
 	}
 	if setupPassword != "" {
-		fmt.Printf("\n>>> Hermes console is password-protected <<<\n\n")
+		fmt.Printf("\n>>> Mosaic console is password-protected <<<\n\n")
 	} else {
-		fmt.Printf("\n>>> Hermes console: no password yet — first visitor creates one <<<\n\n")
+		fmt.Printf("\n>>> Mosaic console: no password yet — first visitor creates one <<<\n\n")
 	}
 
 	// ── Load state ──
@@ -2107,7 +2107,7 @@ func main() {
 	exitChan := make(chan os.Signal, 1)
 	signal.Notify(exitChan, syscall.SIGINT, syscall.SIGTERM)
 
-	fmt.Println("Hermes bridge is running. Press Ctrl+C to disconnect and exit.")
+	fmt.Println("Mosaic bridge is running. Press Ctrl+C to disconnect and exit.")
 	<-exitChan
 
 	fmt.Println("Disconnecting...")

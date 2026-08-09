@@ -1,116 +1,67 @@
-# Hermes — WhatsApp Personal Assistant
+# Mosaic — Your WhatsApp, finally under control.
 
-A WhatsApp-native personal assistant with slash commands, conversation continuity, and
-deep-dive search across all your chats. Deploy in one click — no terminal needed after deploy.
+**Mosaic** is an AI assistant that lives in your WhatsApp. It reads your group chats, tracks what's pending on you, and answers questions like "what's the latest on the widget launch?" — instantly, without opening Slack, email, or any other app.
 
-## Quick Start (Cloud)
+---
 
-### Option 1: Railway (one-click)
+## Why Mosaic
+
+You run your life and work on WhatsApp. 50 groups, hundreds of messages a day. Decisions get buried. Action items slip through. You spend 20 minutes scrolling just to find what someone said about the vendor meeting.
+
+Mosaic fixes this. It scans every message, understands context, and tells you exactly what you need to know — right where you already are.
+
+---
+
+## What It Can Do
+
+- **"What's pending on me?"** — Mosaic finds every commitment, promise, and open question across your chats. Only things *you* need to act on. No noise.
+- **"What's happening with the widget launch?"** — Searches all your groups, tells you the latest, who said what, and what needs attention.
+- **"Catch me up"** — 24-hour sitrep across all chats. Decisions made, blockers flagged, action items surfaced.
+- **"What are my chats with Miten?"** — Summarizes your 1-on-1 conversations. Never forget what you discussed.
+- **Daily summaries** — Schedule automatic digests on any topic. "Send me vendor updates every morning at 9."
+
+---
+
+## How It Works
+
+1. **Deploy in one click** — Railway handles everything.
+2. **Pair your WhatsApp** — Scan a QR code, done in 30 seconds.
+3. **Send a message** — Talk to Mosaic in a dedicated chat. Ask anything.
+4. **Mosaic reads your groups** — It scans messages you've received, finds what matters, and replies privately. Nobody knows you're using it.
+
+Mosaic **never** posts in your group chats. It's your personal reader, not a group bot.
+
+---
+
+## Deploy
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/hermes-2)
 
-1. Click the button above — Railway pre-configures TCP proxy, volume, and health check from the template.
-2. Your access code appears on the login page (or set `SETUP_PASSWORD` in Railway Variables to pick your own).
-3. Follow the wizard: Gemini key → QR → pairing code → ready.
+**1-click deploy, free tier works.** After deploy:
+1. Open the console link Railway gives you
+2. Create a password
+3. Paste your Gemini API key ([get one free](https://aistudio.google.com))
+4. Scan the WhatsApp QR code
+5. Send the pairing code in your chosen chat
 
-### Option 2: Hostinger VPS / Any Docker Host
+That's it. Mosaic sends a welcome message. You're live.
 
-```bash
-git clone https://github.com/sameer-hoda/hermes.git && cd hermes
-docker compose up -d
-# Open http://<your-server-ip>:8080 → follow setup wizard
-```
+---
 
-### Option 3: Local Dev
+## What Users Say
 
-```bash
-git clone https://github.com/sameer-hoda/hermes.git && cd hermes
-cd components/wa_bridge && GOTOOLCHAIN=go1.25.0 go build -o wa-bridge . && cd ../..
-pip install -r hermes_bot/requirements.txt -r components/wa_slash_commands/requirements.txt
-./scripts/hermes_start.sh
-# Open http://localhost:8080 → follow setup wizard
-```
+> "Replaced my morning status-check habit. I ask Mosaic 'what's open' and get a clean list — no scrolling through 20 groups."
+>
+> "I use it to prep for meetings. 'What did Rachit say last week about the partnership?' — answer in 10 seconds."
 
-## Setup Wizard (Browser)
+---
 
-Once deployed, the setup wizard walks you through 3 steps entirely in your browser:
+## Privacy
 
-| Step | What you do |
-|------|-------------|
-| **1. Gemini Key** | Paste your Gemini API key ([get one free](https://aistudio.google.com)) |
-| **2. QR Code** | Scan the QR with WhatsApp (Settings → Linked Devices → Link a Device) |
-| **3. Pair MeChat** | Send the `HERMES-XXXX` code in the WhatsApp chat you want as your assistant chat |
+Your messages stay on your server. Mosaic runs on your own Railway instance. Your Gemini API key is stored with restricted permissions. No third-party access, no cloud sharing.
 
-After pairing, the dashboard shows your chat name, connection status, and uptime. Hermes sends a welcome message into your paired chat.
+Read the full build log → [`HERMES.md`](HERMES.md)
 
-### Kill & Reset
+---
 
-Dashboard → **Kill & Reset** → type `RESET` to confirm. This unlinks the device from your phone and wipes all data. You can optionally keep your Gemini API key.
-
-Or send `/reset` in your MeChat → reply `RESET CONFIRM` within 2 minutes.
-
-## What It Does
-
-| Feature | How it works |
-|---------|-------------|
-| **Slash commands** | `/sotu`, `/pending`, `/stats`, `/recap`, `/eli5`, `/help` in any chat |
-| **Personal assistant** | Talk naturally in your paired chat. "what's open", "catch me up", or any topic |
-| **24-hr Sitrep** | "what needs my attention" — scans all groups for action items |
-| **Deep dive search** | `/ask <topic>` — scans all non-archived groups for relevant updates |
-| **Daily cron** | Schedule recurring summaries: `/cron add "topic" daily 09:00` |
-
-## Architecture
-
-```
-┌─────────────────┐        ┌──────────────────┐
-│   Go Bridge      │◄───────│  Python Hermes   │
-│   (whatsmeow)    │        │                  │
-│                  │        │ • supervisor      │
-│ • Web wizard     │        │ • cron scheduler  │
-│ • Setup state    │        │ • flush thread    │
-│ • :8080 public   │        │                  │
-│ • 127.0.0.1:8081 │        │                  │
-│   internal API   │        │                  │
-└────────┬─────────┘        └──────────────────┘
-         │
-    ┌────┴──── spawned on incoming messages ────┐
-    │                                          │
-    ▼                                          ▼
-wacmd.py (slash commands)    mechat_handler.py (assistant)
-```
-
-## Environment Variables
-
-All variables are optional — the setup wizard handles configuration in-browser:
-
-| Variable | Purpose |
-|----------|---------|
-| `GEMINI_API_KEY` | Gemini API key (skip wizard step 1 if set) |
-| `OWNER_PHONE_NUMBER` | Your phone number (auto-detected after pairing) |
-| `MECHAT_JID` | Assistant chat JID (set during wizard step 3) |
-| `SETUP_PASSWORD` | Console access password (auto-generated if unset) |
-| `STORE_DIR` | Persistent state directory (default `/data` in Docker, `store/` locally) |
-| `PORT` | Public HTTP port (default 8080) |
-| `HERMES_TIMEZONE` | Timezone for cron/sessions (default Asia/Kolkata) |
-
-## Project Structure
-
-```
-hermes_bot/          — Python bot (main, config, supervisor, sender, db)
-  assistant/         — MeChat assistant (session, continuity, handler, responder)
-  cron/              — deep dive & cron (scheduler, searcher, feedback)
-components/
-  wa_bridge/         — Go bridge (whatsmeow, web wizard, REST API)
-  wa_slash_commands/ — slash command engine
-scripts/             — startup scripts
-```
-
-## Documentation
-
-- `HERMES.md` — project overview & build log
-- `docs/contact_resolution.md` — JID/LID/phone resolution guide
-- `docs/whatsapp_database_master_guide.md` — DB schema reference
-
-## Privacy Note
-
-Your WhatsApp message history is stored unencrypted in SQLite databases on the host. When deploying on a VPS, use a single-tenant box and consider disk encryption. Your Gemini API key is stored with restricted permissions (`chmod 600`). The setup console is password-protected with HMAC-signed session cookies.
+*Built for people who live on WhatsApp. One chat. Every answer.*

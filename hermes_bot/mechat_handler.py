@@ -18,7 +18,7 @@ from hermes_bot.db import is_message_from_owner
 
 def _log(msg: str):
     ts = time.strftime("%H:%M:%S")
-    print(f"[hermes {ts}] {msg}", flush=True)
+    print(f"[mosaic {ts}] {msg}", flush=True)
 
 
 def main():
